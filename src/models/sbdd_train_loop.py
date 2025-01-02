@@ -8,7 +8,7 @@ from time import time
 import pytorch_lightning as pl
 
 from torch_scatter import scatter_mean, scatter_sum
-from torch_geometric.data import HeteroData
+from torch_geometric.data import HeteroData, Batch
 
 from src.config.config import Config
 from src.models.bfn4sbdd import BFN4SBDDScoreModel
@@ -70,6 +70,7 @@ class SBDDTrainLoop(pl.LightningModule):
             )  
         
         else:
+            # for no protein pretraining
             protein_pos = torch.empty([0, 3], dtype=ligand_pos.dtype, device=ligand_pos.device)
             protein_v = torch.empty([0, 27], dtype=ligand_v.dtype, device=ligand_v.device).float()
             batch_protein = torch.empty([0], dtype=ligand_pos.dtype, device=ligand_pos.device)
@@ -131,7 +132,6 @@ class SBDDTrainLoop(pl.LightningModule):
 
         loss = torch.mean(c_loss + self.cfg.train.v_loss_weight * d_loss + discretised_loss)
 
-        # t5 = time()
         self.log_dict(
             {
                 'lr': self.get_last_lr(),
@@ -157,17 +157,6 @@ class SBDDTrainLoop(pl.LightningModule):
             return None
         self.train_losses.append(loss.clone().detach().cpu())
 
-        # t0 = time()
-
-        # if self.log_time:
-        #     self.time_records = np.vstack((self.time_records, [t0, t1, t2, t3, t4, t5]))
-        #     print(f'step total time: {self.time_records[-1, 0] - self.time_records[-1, 1]}, batch size: {num_graphs}')
-        #     print(f'\tpl call & data access: {self.time_records[-1, 1] - self.time_records[-2, 0]}')
-        #     print(f'\tunwrap data: {self.time_records[-1, 2] - self.time_records[-1, 1]}')
-        #     print(f'\tadd noise & center pos: {self.time_records[-1, 3] - self.time_records[-1, 2]}')
-        #     print(f'\tsample t: {self.time_records[-1, 4] - self.time_records[-1, 3]}')
-        #     print(f'\tget loss: {self.time_records[-1, 5] - self.time_records[-1, 4]}')
-        #     print(f'\tlogging: {self.time_records[-1, 0] - self.time_records[-1, 5]}')
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -193,13 +182,7 @@ class SBDDTrainLoop(pl.LightningModule):
 
     def shared_sampling_step(self, batch: HeteroData, batch_idx, sample_num_atoms, desc=''):
         # here we need to sample the molecules in the validation step
-
-        ligand_pos, ligand_v, batch_ligand, rgroup_mask = (
-            batch["ligand"].pos,
-            batch["ligand"].x,
-            batch["ligand"].batch,
-            batch["ligand"].rgroup_mask,
-        )
+        batch_ligand = batch["ligand"].batch
                     
         if "protein" in batch.node_types:
             protein_pos, protein_v, batch_protein = (
@@ -209,53 +192,56 @@ class SBDDTrainLoop(pl.LightningModule):
             )  
         
         else:
+            # for no protein pretraining
             protein_pos = torch.empty([0, 3], dtype=ligand_pos.dtype, device=ligand_pos.device)
             protein_v = torch.empty([0, 27], dtype=ligand_v.dtype, device=ligand_v.device).float()
             batch_protein = torch.empty([0], dtype=ligand_pos.dtype, device=ligand_pos.device)
-            
-        num_graphs = batch_ligand.max().item() + 1  # B
         
-        n_nodes = batch_ligand.size(0)  # N_lig
+        # TODO: change to use batch_protein if denovo generation
+        num_graphs = batch_ligand.max().item() + 1  # B
         assert num_graphs == len(batch), f"num_graphs: {num_graphs} != len(batch): {len(batch)}"
-
-        # move protein center to origin & ligand correspondingly
-        protein_pos, ligand_pos, offset = center_pos(
-            protein_pos,
-            ligand_pos,
-            batch_protein,
-            batch_ligand,
-            rgroup_mask,
-            mode=self.cfg.dynamics.center_pos_mode,
-        )  # TODO: ugly
          
         # determine the number of atoms in the ligand
-        # TODO :change prior code here
         if sample_num_atoms == 'prior':
             ligand_num_atoms = []
             rgroup_mask, ligand_pos, ligand_v = [], [], []
-            for data_id in range(len(batch)):
+            data_batch = []
+            while len(ligand_num_atoms) < len(batch):
+                data_id = len(ligand_num_atoms)
                 data = batch[data_id]
-                rgroup_mask_single = data["ligand"].rgroup_mask
-                ligand_v_single = data["ligand"].x[rgroup_mask_single]
-                ligand_pos_single = data["ligand"].pos[rgroup_mask_single]
-                raw_num_atoms = len(ligand_pos_single)
-                new_num_atoms = atom_num.sample_atom_num(raw_num_atoms).astype(int)
-                if new_num_atoms > raw_num_atoms:
-                    new_num_atoms = raw_num_atoms
-                    ligand_num_atoms.append(new_num_atoms)
-                    # 在lignad_v_single里随便复制一点，放在最后，要复制new_num_atoms - raw_num_atoms次
-                    ligand_v_single = torch.cat([ligand_v_single, (new_num_atoms - raw_num_atoms) * torch.ones_like(ligand_v_single[:1])])
-                    ligand_pos_single = torch.cat([ligand_pos_single, (new_num_atoms - raw_num_atoms) * torch.randn_like(ligand_pos_single[:1])])
-                    rgroup_mask_single = torch.zeros(len(ligand_v_single), dtype=torch.bool, device=ligand_pos_single.device)
-                    rgroup_mask_single[-new_num_atoms:] = True
                 pocket_size = atom_num.get_space_size(data["protein"].pos.detach().cpu().numpy() * self.cfg.data.normalizer_dict.pos)
-                # TODO 这里处理一下lignad_pos , ligand_v, batch_ligand, rgroup_mask
-                ligand_num_atoms.append(atom_num.sample_atom_num(pocket_size).astype(int))
-            batch_ligand = torch.repeat_interleave(torch.arange(len(batch)), torch.tensor(ligand_num_atoms)).to(ligand_pos.device)
-            ligand_num_atoms = torch.tensor(ligand_num_atoms, dtype=torch.long, device=ligand_pos.device)
+                num_atoms = atom_num.sample_atom_num(pocket_size).astype(int)
+                update_num_atoms = num_atoms - len(data["ligand"].pos[~data["ligand"].rgroup_mask])
+                # update_num_atoms must > 0
+                if update_num_atoms <= 0:
+                    continue
+                
+                ligand_num_atoms.append(num_atoms)
+                # update ligand_pos and ligand_v, rgroup_mask
+                data["ligand"].pos = torch.cat([data["ligand"].pos[~data["ligand"].rgroup_mask], torch.zeros(update_num_atoms, 3, device=data["ligand"].pos.device)])
+                data["ligand"].x = torch.cat([data["ligand"].x[~data["ligand"].rgroup_mask], torch.zeros(update_num_atoms, device=data["ligand"].x.device)])
+                # update rgroup_mask, (~data["ligand"].rgroup_mask).sum().item() is the number of atoms in the scaffold, so the rgroup_mask is the rest
+                data["ligand"].rgroup_mask = torch.arange(num_atoms, device=data["ligand"].rgroup_mask.device) >= (~data["ligand"].rgroup_mask).sum().item()
+                data_batch.append(data)
+                
+                assert len(data["ligand"].pos) == num_atoms and len(data["ligand"].x) == num_atoms and len(data["ligand"].rgroup_mask) == num_atoms
+                rgroup_mask.append(data["ligand"].rgroup_mask)
+                ligand_pos.append(data["ligand"].pos)
+                ligand_v.append(data["ligand"].x.long())
+            batch = Batch.from_data_list(data_batch)
+            batch["ligand"].x = batch["ligand"].x.long()
+            batch_ligand = torch.repeat_interleave(torch.arange(len(batch)), torch.tensor(ligand_num_atoms)).to(protein_pos.device)
+            ligand_num_atoms = torch.tensor(ligand_num_atoms, dtype=torch.long, device=protein_pos.device)
+            rgroup_mask = torch.cat(rgroup_mask, dim=0).bool()
+            ligand_pos = torch.cat(ligand_pos, dim=0)
+            ligand_v = torch.cat(ligand_v, dim=0).long()
         elif sample_num_atoms == 'ref':
-            # batch_ligand = batch.ligand_element_batch # 这边的batch_ligand就是pyg里的batch['ligand'].batch
-            # 这边要做的是把batch_ligand用来统计每个分子的原子数，然后后面好做slicer
+            ligand_pos, ligand_v, batch_ligand, rgroup_mask = (
+                batch["ligand"].pos,
+                batch["ligand"].x,
+                batch["ligand"].batch,
+                batch["ligand"].rgroup_mask,
+            )
             ligand_num_atoms = scatter_sum(torch.ones_like(batch_ligand), batch_ligand, dim=0).to(ligand_pos.device)
         else:
             raise ValueError(f"sample_num_atoms mode: {sample_num_atoms} not supported")
@@ -264,6 +250,16 @@ class SBDDTrainLoop(pl.LightningModule):
             ligand_num_atoms.cumsum(dim=0)
         ])# 这个经过cunsum之后就是每个分子的起始位置
         
+        # move protein center to origin & ligand correspondingly
+        protein_pos, ligand_pos, offset = center_pos(
+            protein_pos,
+            ligand_pos,
+            batch_protein,
+            batch_ligand,
+            rgroup_mask,
+            mode=self.cfg.dynamics.center_pos_mode, # protein
+        )
+           
         # TODO reuse for visualization and test
         # forward pass to get the ligand sample
         theta_chain, sample_chain, y_chain = self.dynamics.sample(
@@ -281,7 +277,7 @@ class SBDDTrainLoop(pl.LightningModule):
             # ligand_pos=ligand_pos,  # for debug only
             desc=desc,
         )
-        # TODO:check offset and ligand_pos
+
         # restore ligand to original position
         final = sample_chain[-1]  # mu_pos_final, k_final, k_hat_final
         # only change the predicted rgroup's position, because the original ligand pos in batch did not change CoM
@@ -308,11 +304,7 @@ class SBDDTrainLoop(pl.LightningModule):
         pred_atom_type = trans.get_atomic_number_from_index(
             out_batch["ligand"].x, mode=self.cfg.data.transform.ligand_atom_mode
         ) # List[int]
-
-        # for visualization
-        # 这边是molcraft的legacy，就是把atom type的原子序数转回对应的index
-        # atom_type = [trans.MAP_ATOM_TYPE_ONLY_TO_INDEX[i] for i in pred_atom_type]  # List[int]
-        # atom_type = torch.tensor(atom_type, dtype=torch.long, device=ligand_pos.device)  # [N_lig]
+        
 
         # for reconstruction
         pred_aromatic = trans.is_aromatic_from_index(
@@ -328,15 +320,15 @@ class SBDDTrainLoop(pl.LightningModule):
         # # out_batch.mol = results
 
         _slice_dict = {
-            # "x": ligand_cum_atoms,
-            # "pos": ligand_cum_atoms,
+            "pos": ligand_cum_atoms,
+            "x": ligand_cum_atoms,
             "atom_type": ligand_cum_atoms,
             "is_aromatic": ligand_cum_atoms,
             # "mol": out_batch._slice_dict["ligand_filename"],
         }
         _inc_dict = {
-            # "x": out_batch._inc_dict["ligand_element"], # [0] * B, TODO: figure out what this is 
-            # "pos": out_batch._inc_dict["ligand_pos"],
+            "pos": out_batch._inc_dict["ligand"]["pos"],
+            "x": out_batch._inc_dict["ligand"]["x"],
             "atom_type": out_batch._inc_dict["ligand"]["x"], # element对应的原子序数
             "is_aromatic": out_batch._inc_dict["ligand"]["x"],
             # "mol": out_batch._inc_dict["ligand_filename"],

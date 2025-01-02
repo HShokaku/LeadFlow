@@ -374,7 +374,7 @@ def fixup(atoms, mol, indicators):
         # elif ind[ATOM_FAMILIES_ID['Acceptor']]: # NOT AcceptorDonor because of else
         #     atom.SetImplicitHCount(0)   
 
-        if (atom.GetAtomicNum() in (7, 8, 16)) and atom.IsInRing():  # Nitrogen, Oxygen, Sulfur
+        if (atom.GetAtomicNum() in (7, 8)) and atom.IsInRing():  # Nitrogen, Oxygen
             # this is a little iffy, ommitting until there is more evidence it is a net positive
             # we don't have aromatic types for nitrogen, but if it
             # is in a ring with aromatic carbon mark it aromatic as well
