@@ -4,26 +4,14 @@ import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-# from torch_geometric.data import Data
-from torch_scatter import scatter_mean
 import numpy as np
 # import torch
 import os
 from tqdm import tqdm
-# import pickle as pkl
-import json
 import matplotlib
-# import wandb
-# import copy
-# import glob
-import shutil
 
 from src.evaluation.metrics import CondMolGenMetric
-# from core.evaluation.utils import convert_atomcloud_to_mol_smiles, save_mol_list
-# from core.evaluation.visualization import visualize, visualize_chain
-# from core.utils import transforms as trans
-# from core.evaluation.utils import timing
-from src.callbacks.validation_callback import reconstruct_mol_and_filter_invalid
+from src.callbacks.validation_callback import reconstruct_mol_and_filter_invalid_mr
 
 # this file contains the model which we used to visualize the
 
@@ -31,31 +19,6 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 
-
-# TODO: refactor and move center_pos (and that in train_bfn.py) into utils
-def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, rgroup_mask, mode="protein"):
-    # TODO
-    if mode == "none":
-        offset = 0.0
-        pass
-    elif mode == "protein":
-        offset = scatter_mean(protein_pos, batch_protein, dim=0)
-        protein_pos = protein_pos - offset[batch_protein]
-        ligand_pos = ligand_pos - offset[batch_ligand]
-    elif mode == "scaffold":
-        offset = scatter_mean(ligand_pos[~rgroup_mask], batch_ligand[~rgroup_mask], dim=0)
-        if batch_protein.numel() > 0:
-            protein_pos = protein_pos - offset[batch_protein]
-        else:
-            protein_pos = protein_pos
-        ligand_pos = ligand_pos - offset[batch_ligand]
-    else:
-        raise NotImplementedError
-    return protein_pos, ligand_pos, offset
-
-
-OUT_DIR = './output'
-LAST_PROTEIN_FN = None
 
 
 class DockingTestCallback(Callback):
@@ -103,7 +66,8 @@ class DockingTestCallback(Callback):
     ) -> None:
         super().on_test_epoch_end(trainer, pl_module)
 
-        results, recon_dict = reconstruct_mol_and_filter_invalid(self.outputs)
+        # TODO: !!! using openbabel to reconstruct the molecule
+        results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
 
         # path = pl_module.cfg.accounting.test_outputs_dir
         # if os.path.exists(path):
@@ -134,13 +98,6 @@ class DockingTestCallback(Callback):
             if not validity or not complete:
                 print('validity', validity, 'complete', complete)
                 continue
-                        
-            # ligand_filename = graph.ligand_filename
-            # ligand_dir = os.path.dirname(ligand_filename)
-            # ligand_fn = os.path.basename(ligand_filename)
-            # protein_fn = os.path.join(ligand_dir, ligand_fn[:10] + '.pdb')
-    
-            # print(json.dumps(chem_results, indent=4, cls=NpEncoder))
 
             out_fn = os.path.join(self.output_path, f'{rank}_{idx}.sdf')
             with Chem.SDWriter(out_fn) as w:

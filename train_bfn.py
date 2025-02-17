@@ -186,7 +186,8 @@ if __name__ == "__main__":
         # shutil.copyfile('./configs/default.yaml', cfg.accounting.dump_config_path)
     set_test_output_dir(cfg)
 
-    seed_everything(cfg.seed, workers=True)
+    if not cfg.test_only:
+        seed_everything(cfg.seed, workers=True)
 
     logging_level = {
         "info": logging.INFO,
@@ -235,8 +236,7 @@ if __name__ == "__main__":
         max_epochs=cfg.train.epochs,
         check_val_every_n_epoch=cfg.train.ckpt_freq,
         # devices=[1],
-        devices=[0,1,2,3,4,5,6,7],
-        strategy="ddp_find_unused_parameters_true",
+        devices=[4,5,6,7], strategy="ddp_find_unused_parameters_true",
         logger=wandb_logger,
         num_sanity_val_steps=0,
         inference_mode=not cfg.test_only,
@@ -306,4 +306,7 @@ if __name__ == "__main__":
         trainer.test(model, dataloaders=test_loader, ckpt_path=cfg.evaluation.ckpt_path)
     else:
         # trainer.validate(model, dataloaders=val_loader, ckpt_path=cfg.evaluation.ckpt_path)
+        rank = trainer.local_rank
+        seed_everything(cfg.seed + rank, workers=True)
+        
         trainer.test(model, dataloaders=test_loader, ckpt_path=cfg.evaluation.ckpt_path)

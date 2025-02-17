@@ -30,7 +30,7 @@ class ProteinLigandSimpleFeaturization:
         return torch.tensor(ligand.GetConformer().GetPositions(), dtype=torch.float)
     
 
-    def __call__(self, mol: Chem.Mol, scaffold_mol: Chem.Mol, pocket: dict, uuid: int) -> HeteroData:
+    def __call__(self, mol: Chem.Mol, scaffold_mol: Chem.Mol, pocket: dict, uuid: int, mode='train') -> HeteroData:
 
         x = self.get_ligand_atom_types(mol)
         pos = self.get_ligand_positions(mol)
@@ -39,10 +39,17 @@ class ProteinLigandSimpleFeaturization:
             matches = mol.GetSubstructMatches(scaffold_mol)
             match = matches[0]
 
-            # 如果全匹配上了，那么就不需要mask了
+
             if len(match) == len(x):
-                print(f"Found scaffold all matches for {uuid}")
-                match = []
+                # If the scaffold is the same as the ligand, we mask all atoms for denovo generation training
+                if mode == 'train':
+                    print(f"Found scaffold all matches for {uuid}")
+                    match = []
+                # In sample mode, if the scaffold is the same as the ligand, non atoms are masked, rgroup will be added in prior sampling mode
+                elif mode == 'sample':
+                    match = range(len(x))
+                else:
+                    raise ValueError(f"Unknown mode for scaffold match: {mode}")
         else:
             print(f"Could not find scaffold matches for {uuid}")
             match = []
