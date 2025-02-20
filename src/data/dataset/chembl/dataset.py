@@ -130,7 +130,7 @@ class chembl_Dataset(ProteinLigandDataset):
 
             
             if self.pre_transform is not None:
-                data = self.pre_transform(mol, scaf_mol, pocket_dict, identifier)
+                data = self.pre_transform(mol, scaf_mol, pocket_dict, identifier, mode=split)
             
             return data
         except Exception as e:
