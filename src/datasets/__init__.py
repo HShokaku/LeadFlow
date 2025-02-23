@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Subset
 
 from src.data.dataset import chembl_Dataset, chembl_DataModule
-from src.data.featurization import ProteinLigandSimpleFeaturization
+from src.data.featurization import ProteinLigandSimpleFeaturization, ProteinLigandBondFeaturization
 # from src.datasets.pl_pair_dataset import PocketLigandPairDataset, PocketLigandPairDatasetFeaturized, PocketLigandGeneratedPairDataset, PocketLigandPairDatasetFeaturized_mat2a
 # from src.datasets.pdbbind import PDBBindDataset
 
@@ -38,10 +38,9 @@ from src.data.featurization import ProteinLigandSimpleFeaturization
 #     else:
 #         return dataset
 
-def get_datamodule(dataset_name: str, batch_size: int = 32):
+def get_datamodule(dataset_name: str, transform: str, batch_size: int = 32):
     if "chembl" in dataset_name:
         dataset_constructor = chembl_DataModule
-        pre_transform = ProteinLigandSimpleFeaturization()
         pre_filter = None
     # elif "crossdocked" in dataset_name:
     #     dataset_constructor = Multi_R_anchor_crossdock_DataModule
@@ -49,6 +48,13 @@ def get_datamodule(dataset_name: str, batch_size: int = 32):
     #     pre_filter = None
     else:
         raise NotImplementedError(f"Dataset {dataset_name} not supported")
+    
+    if transform == "bond":
+        pre_transform = ProteinLigandBondFeaturization()
+    elif transform == "simple":
+        pre_transform = ProteinLigandSimpleFeaturization()
+    else:
+        raise ValueError(f"Unknown transform {transform}")
     
     dataset = dataset_constructor(
         f"data/{dataset_name}/",

@@ -1,1 +1,2 @@
 from src.data.featurization.pl_simple import ProteinLigandSimpleFeaturization
+from src.data.featurization.pl_bond import ProteinLigandBondFeaturization

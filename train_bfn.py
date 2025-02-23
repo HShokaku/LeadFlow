@@ -11,6 +11,7 @@ from torch_geometric.transforms import Compose
 
 from src.config.config import Config, parse_config
 from src.models.sbdd_train_loop import SBDDTrainLoop
+from src.models.sbdd_train_loop_bond import SBDDTrainLoopBond
 from src.callbacks.basic import RecoverCallback, GradientClip, NormalizerCallback, EMACallback
 from src.callbacks.ema import EMA
 from src.callbacks.validation_callback import (
@@ -36,13 +37,21 @@ import glob
 
 def get_dataloader(cfg):
     if 'chembl' in cfg.data.name:
-        dataset = get_datamodule(cfg.data.name, cfg.train.batch_size)
+        if cfg.train.bond_prediction:
+            transform = 'bond'
+        else:
+            transform = 'simple'
+        dataset = get_datamodule(cfg.data.name, transform, cfg.train.batch_size)
         dataset.setup('fit')
         dataset.setup('test')
         
-        train_loader = dataset.train_dataloader()
-        val_loader = dataset.val_dataloader()
-        test_loader = dataset.test_dataloader()
+        train_loader = dataset.train_dataloader(follow_batch=FOLLOW_BATCH)
+        # full_val_dataset = dataset.val_dataloader().dataset
+        # val_indices = torch.randperm(len(full_val_dataset))[:10]
+        # val_subset = Subset(full_val_dataset, val_indices)
+        # val_loader = DataLoader(val_subset, batch_size=cfg.train.batch_size, follow_batch=FOLLOW_BATCH, shuffle=False, pin_memory=True)
+        val_loader = dataset.val_dataloader(follow_batch=FOLLOW_BATCH)
+        test_loader = dataset.test_dataloader(follow_batch=FOLLOW_BATCH)
         
     elif 'SureChEMBL' in cfg.data.name:
         dataset = get_datamodule(cfg.data.name, cfg.train.batch_size)
@@ -136,6 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument('--v_loss_weight', type=float, default=1)
+    parser.add_argument('--bond_prediction', type=bool, default=False)
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--scheduler', type=str, default='plateau', choices=['cosine', 'plateau'])
     parser.add_argument('--weight_decay', type=float, default=0)
@@ -229,14 +239,17 @@ if __name__ == "__main__":
     wandb_logger.log_hyperparams(cfg.todict())
     print(f"The config of this process is:\n{cfg}")
 
-    model = SBDDTrainLoop(config=cfg)
+    if not cfg.train.bond_prediction:
+        model = SBDDTrainLoop(config=cfg)
+    else:
+        model = SBDDTrainLoopBond(config=cfg)
     
     trainer = pl.Trainer(
         default_root_dir=cfg.accounting.logdir,
         max_epochs=cfg.train.epochs,
         check_val_every_n_epoch=cfg.train.ckpt_freq,
         # devices=[1],
-        devices=[4,5,6,7], strategy="ddp_find_unused_parameters_true",
+        devices=[1,2], strategy="ddp_find_unused_parameters_false",
         logger=wandb_logger,
         num_sanity_val_steps=0,
         inference_mode=not cfg.test_only,
@@ -256,6 +269,7 @@ if __name__ == "__main__":
                 single_bond=True,
                 docking_config=cfg.evaluation.docking_config,
                 val_freq=cfg.train.val_freq,
+                bond_prediction=cfg.train.bond_prediction,
                 # single_bond=cfg.evaluation.single_bond,  # TODO: check compatibility
             ),
             # VisualizeMolAndTrajCallback(

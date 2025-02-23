@@ -38,6 +38,28 @@ class AngleExpansion(nn.Module):
         return torch.cos(angle.view(-1, 1) * self.coeff.view(1, -1))
 
 
+class AngularEncoding(nn.Module):
+
+    def __init__(self, num_funcs=3):
+        super().__init__()
+        self.num_funcs = num_funcs
+        self.register_buffer('freq_bands', torch.FloatTensor(
+            [i+1 for i in range(num_funcs)] + [1./(i+1) for i in range(num_funcs)]
+        ))
+
+    def get_out_dim(self, in_dim):
+        return in_dim * (1 + 2*2*self.num_funcs)
+
+    def forward(self, x):
+        """
+        Args:
+            x:  (E, ).
+        """
+        x = x.unsqueeze(-1)  # (E, 1)
+        code = torch.cat([x, torch.sin(x * self.freq_bands), torch.cos(x * self.freq_bands)], dim=-1)   # (E, 4f+1)
+
+        return code
+
 class Swish(nn.Module):
     def __init__(self):
         super(Swish, self).__init__()
@@ -115,6 +137,53 @@ def get_r_feat(r, r_exp_func, node_type=None, edge_index=None, mode='basic'):
     else:
         raise ValueError(mode)
     return r_feat
+
+
+def compose_context_mr_bond(h_protein, h_scaffold, h_rgroup, pos_protein, pos_scaffold, pos_rgroup, batch_protein, batch_ligand, rgroup_mask):
+    # previous version has problems when ligand atom types are fixed
+    # (due to sorting randomly in case of same element)
+
+    # TODO: check if this runs on cpu
+    batch_ctx = torch.cat([batch_protein, 
+                           batch_ligand[~rgroup_mask], 
+                           batch_ligand[rgroup_mask]], dim=0)
+    # sort_idx = batch_ctx.argsort()
+    sort_idx = torch.sort(batch_ctx, stable=True).indices
+    
+    n_protein = batch_protein.size(0)
+    n_scaffold = batch_ligand[~rgroup_mask].size(0)
+    n_rgroup = batch_ligand[rgroup_mask].size(0)
+
+    mask_rgroup = torch.cat([
+        torch.zeros([n_protein], device=batch_protein.device).bool(),
+        torch.zeros([n_scaffold], device=batch_ligand.device).bool(),
+        torch.ones([n_rgroup], device=batch_ligand.device).bool(),
+    ], dim=0)[sort_idx]
+    
+    mask_scaffold = torch.cat([
+        torch.zeros([n_protein], device=batch_protein.device).bool(),
+        torch.ones([n_scaffold], device=batch_ligand.device).bool(),
+        torch.zeros([n_rgroup], device=batch_ligand.device).bool(),
+    ], dim=0)[sort_idx]
+    
+    
+    idx_scaffold = torch.arange(n_scaffold, device=batch_ligand.device) + n_protein
+    idx_rgroup = torch.arange(n_rgroup, device=batch_ligand.device) + n_protein + n_scaffold
+    
+    # get the original index of ligand atoms after masking and concatenation
+    ligand_idx_after_mask = torch.empty(batch_ligand.size(0), dtype=torch.long, device=batch_ligand.device)
+    ligand_idx_after_mask[~rgroup_mask] = idx_scaffold
+    ligand_idx_after_mask[rgroup_mask] = idx_rgroup
+
+    
+    batch_ctx = batch_ctx[sort_idx]
+    h_ctx = torch.cat([h_protein, h_scaffold, h_rgroup], dim=0)[sort_idx]  # (N_protein+N_ligand, H)
+    pos_ctx = torch.cat([pos_protein, pos_scaffold, pos_rgroup], dim=0)[sort_idx]  # (N_protein+N_ligand, 3)
+    # get the original index of ligand atoms in the sorted context
+    inv_sort_idx = torch.argsort(sort_idx)
+    ligand_idx_in_ctx = inv_sort_idx[ligand_idx_after_mask]
+    
+    return h_ctx, pos_ctx, batch_ctx, mask_rgroup, mask_scaffold, ligand_idx_in_ctx
 
 
 def compose_context_mr(h_protein, h_scaffold, h_rgroup, pos_protein, pos_scaffold, pos_rgroup, batch_protein, batch_ligand, rgroup_mask):
@@ -198,7 +267,7 @@ def hybrid_edge_connection(ligand_pos, protein_pos, k, ligand_index, protein_ind
     dst, src = dst[mask], src[mask]
     ll_edge_index = torch.stack([src, dst])
 
-    # knn for ligand-protein edges
+    # knn for ligand-protein edges, find k nearest protein atoms for each ligand atom
     ligand_protein_pos_dist = torch.unsqueeze(ligand_pos, 1) - torch.unsqueeze(protein_pos, 0)
     ligand_protein_pos_dist = torch.norm(ligand_protein_pos_dist, p=2, dim=-1)
     knn_p_idx = torch.topk(ligand_protein_pos_dist, k=k, largest=False, dim=1).indices
@@ -207,7 +276,7 @@ def hybrid_edge_connection(ligand_pos, protein_pos, k, ligand_index, protein_ind
     knn_l_idx = knn_l_idx.repeat(1, k)
     pl_edge_index = torch.stack([knn_p_idx, knn_l_idx], dim=0)
     pl_edge_index = pl_edge_index.view(2, -1)
-    return ll_edge_index, pl_edge_index
+    return ll_edge_index, pl_edge_index # ligand-ligand, protein-ligand
 
 
 def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False):
@@ -222,8 +291,8 @@ def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False):
                 ligand_pos, protein_pos, k, ligand_index, protein_index)
             batch_ll_edge_index.append(ll_edge_index)
             batch_pl_edge_index.append(pl_edge_index)
-            if add_p_index:
-                all_pos = torch.cat([protein_pos, ligand_pos], 0)
+            if add_p_index: # True 这个knn还有蛋白和配体的边，只保证了dst节点是蛋白, protein-ligand, protein-protein
+                all_pos = torch.cat([protein_pos, ligand_pos], 0) # ！！！如果用all_pos，index可能会乱掉，我是这样拼的[x_protein, x_scaffold, x_rgroup]
                 p_edge_index = knn_graph(all_pos, k=k, flow='source_to_target')
                 p_edge_index = p_edge_index[:, p_edge_index[1] < len(protein_pos)]
                 p_src, p_dst = p_edge_index

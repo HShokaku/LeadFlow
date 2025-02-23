@@ -44,7 +44,7 @@ class ProteinLigandComplexDataModule(LightningDataModule):
     def dataset_from_split(self, split: str) -> Dataset:
         ...
 
-    def train_dataloader(self):
+    def train_dataloader(self, follow_batch=None):
         if self.overfit_item:
             train_dataset = [
                 self.train_dataset[0] for _ in range(len(self.train_dataset))
@@ -56,9 +56,10 @@ class ProteinLigandComplexDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=self.shuffle,
             pin_memory=True,
+            follow_batch=follow_batch,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self, follow_batch=None):
         if self.overfit_item:
             val_dataset = [self.train_dataset[0] for _ in range(self.batch_size)]
         else:
@@ -68,12 +69,14 @@ class ProteinLigandComplexDataModule(LightningDataModule):
             batch_size=self.val_batch_size,
             shuffle=False,
             pin_memory=True,
+            follow_batch=follow_batch,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self, follow_batch=None):
         return self.dataloader(
             self.test_dataset,
             batch_size=self.test_batch_size,
             shuffle=False,
             pin_memory=True,
+            follow_batch=follow_batch,
         )

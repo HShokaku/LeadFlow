@@ -7,6 +7,7 @@ https://github.com/mattragoza/liGAN/blob/master/LICENSE
 import itertools
 
 import numpy as np
+from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import Geometry
 from openbabel import openbabel as ob
@@ -475,6 +476,93 @@ def postprocess_rd_mol_2(rdmol):
             atom.SetFormalCharge(0)
 
     return rdmol
+
+
+def modify_submol(mol):  # modify mols containing O=[NH]O -> NO2
+    submol = Chem.MolFromSmiles('O=[NH]O', sanitize=False)
+    sub_fragments = mol.GetSubstructMatches(submol)
+    for fragment in sub_fragments:
+        atomic_nums = np.array([mol.GetAtomWithIdx(atom).GetAtomicNum() for atom in fragment])
+        idx_atom_N = fragment[np.where(atomic_nums == 7)[0][0]]
+        # idx_atom_O = fragment[np.where(atomic_nums == 8)[0][0]]
+        mol.GetAtomWithIdx(idx_atom_N).SetFormalCharge(1)  # set N to N+
+        # mol.GetAtomWithIdx(idx_atom_O).SetFormalCharge(-1)  # set O to O-
+    return mol
+
+def reconstruct_from_generated_with_bond(xyz, atomic_nums, bond_index, bond_type, check_validity=True):
+    n_atoms = len(atomic_nums)
+    
+    if isinstance(atomic_nums, np.ndarray):
+        atomic_nums = atomic_nums.tolist()
+    if isinstance(bond_index, np.ndarray):
+        bond_index = bond_index.tolist()
+            
+    
+    rd_mol = Chem.RWMol()
+    rd_conf = Chem.Conformer(n_atoms)
+
+    # add atoms and coordinates
+    for i, atom in enumerate(atomic_nums):
+        rd_atom = Chem.Atom(atom)
+        rd_mol.AddAtom(rd_atom)
+        rd_coords = Geometry.Point3D(*xyz[i])
+        rd_conf.SetAtomPosition(i, rd_coords)
+    rd_mol.AddConformer(rd_conf)
+
+    # add bonds
+    for i, type_this in enumerate(bond_type):
+        node_i, node_j = bond_index[0][i], bond_index[1][i]
+        if node_i < node_j:
+            if type_this == 0:
+                continue
+            elif type_this == 1:
+                rd_mol.AddBond(node_i, node_j, Chem.BondType.SINGLE)
+            elif type_this == 2:
+                rd_mol.AddBond(node_i, node_j, Chem.BondType.DOUBLE)
+            elif type_this == 3:
+                rd_mol.AddBond(node_i, node_j, Chem.BondType.TRIPLE)
+            # elif type_this == 4:
+            #     rd_mol.AddBond(node_i, node_j, Chem.BondType.AROMATIC)
+            else:
+                raise Exception('unknown bond order {}'.format(type_this))
+
+    mol = rd_mol.GetMol()
+    if check_validity:
+        try:
+            mol = modify_submol(mol)
+            Chem.SanitizeMol(mol)
+            # fixed = True
+        except Exception as e:
+            raise MolReconError()
+            # fixed = False
+
+        # if not fixed:
+        #     try:
+        #         Chem.Kekulize(deepcopy(mol))
+        #     except Chem.rdchem.KekulizeException as e:
+        #         err = e
+        #         if 'Unkekulized' in err.args[0]:
+        #             mol, fixed = fix_aromatic(mol)
+
+        # # valence error for N
+        # if not fixed:
+        #     mol, fixed = fix_valence(mol)
+
+        # # print('s2')
+        # if not fixed:
+        #     mol, fixed = fix_aromatic(mol, True)
+
+        # try:
+        #     Chem.SanitizeMol(mol)
+        # except Exception as e:
+        #     raise MolReconsError()
+        #     # return None
+
+    # check valid
+    # rd_mol_check = Chem.MolFromSmiles(Chem.MolToSmiles(mol))
+    # if (rd_mol_check is None) and check_validity:
+    #     raise MolReconsError()
+    return mol
 
 
 def reconstruct_from_generated(xyz, atomic_nums, aromatic=None, basic_mode=True):

@@ -24,7 +24,7 @@ from src.evaluation.utils import convert_atomcloud_to_mol_smiles, save_mol_list
 from src.evaluation.visualization import visualize, visualize_chain
 from src.utils import transforms as trans 
 from src.evaluation.utils import timing
-from src.utils.reconstruct import reconstruct_from_generated, MolReconError
+from src.utils.reconstruct import reconstruct_from_generated, reconstruct_from_generated_with_bond, MolReconError
 
 # this file contains the model which we used to visualize the
 
@@ -55,6 +55,80 @@ def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, rgroup_mask
     return protein_pos, ligand_pos, offset
 
 
+def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
+    results = []
+    n_recon, n_complete, n_valid = 0, 0, 0
+    n_total = len(out_list)
+    center_change_list, mol_pos_range_list = [], []
+
+    for item in out_list:
+        ligand_filename = item.uuid
+        pos, atom_type, bond_type = (
+            item["ligand"].pos.detach().cpu().numpy().astype('float64'),
+            item["ligand"].atom_type.detach().cpu().numpy().astype('int32'), # [N]
+            item["ligand"].fc_bond_types.detach().cpu().numpy().astype('int32'), # [N, N]
+        )
+        
+        bond_index = item["ligand", "ligand"].edge_index.detach().cpu().numpy().astype('int32')
+        
+        if "protein" in item.node_types:
+            protein_pos, protein_v = (
+                item["protein"].pos.detach().cpu().numpy().astype('float64'), 
+                item["protein"].x.detach().cpu().numpy(),
+            )
+        else:
+            protein_pos = np.empty([0, 3], dtype=pos.dtype)
+            protein_v = np.empty([0, 27], dtype=atom_type.dtype)
+        
+        # # remove fake atoms
+        # pos = pos[atom_type != 0]
+        # is_aromatic = is_aromatic[atom_type != 0]
+        # atom_type = atom_type[atom_type != 0]
+        
+        try:
+            mol = reconstruct_from_generated_with_bond(pos, atom_type, bond_index, bond_type)
+            n_recon += 1
+
+            mol_center = pos.mean(axis=0)
+            if protein_pos.size == 0:
+                protein_center = pos.mean(axis=0)
+            else:
+                protein_center = protein_pos.mean(axis=0)
+            center_change = np.linalg.norm(mol_center - protein_center)
+            mol_pos_range = np.linalg.norm(pos.max(axis=0)[0] - pos.min(axis=0)[0])
+
+            res = {
+                'mol': mol, 'ligand_filename': ligand_filename, 
+                'pred_pos': pos, 'pred_v': atom_type, 'pred_bond': bond_type, 'bond_index': bond_index,
+                'protein_center': protein_center, 'mol_center': mol_center,
+                'center_change': center_change, 'mol_pos_range': mol_pos_range,
+            }
+            center_change_list.append(center_change)
+            mol_pos_range_list.append(mol_pos_range)
+
+            Chem.SanitizeMol(mol)
+            smiles = Chem.MolToSmiles(mol)
+            complete = smiles is not None and '.' not in smiles
+            validity = smiles is not None
+
+            n_complete += int(complete)
+            n_valid += int(validity)
+            res['smiles'] = smiles                    
+            res['complete'] = complete
+            res['validity'] = validity
+            results.append(res)
+        except Exception as e:
+            print(e)
+            continue
+
+    return results, {
+        'recon_success': n_recon / n_total,
+        'completeness': n_complete / n_total,
+        'validity': n_valid / n_total,
+        'center_change': np.mean(center_change_list),
+        'mol_pos_range': np.mean(mol_pos_range_list),
+    }
+    
 
 def reconstruct_mol_and_filter_invalid_mr(out_list):
     results = []
@@ -185,7 +259,7 @@ def reconstruct_mol_and_filter_invalid(out_list):
 
 # TODO merge with ReconValidationCallback
 class ValidationCallback(Callback):
-    def __init__(self, dataset, atom_enc_mode, atom_decoder, atom_type_one_hot, single_bond, docking_config, val_freq) -> None:
+    def __init__(self, dataset, atom_enc_mode, atom_decoder, atom_type_one_hot, single_bond, docking_config, val_freq, bond_prediction) -> None:
         super().__init__()
         self.dataset = dataset
         self.atom_enc_mode = atom_enc_mode
@@ -195,6 +269,7 @@ class ValidationCallback(Callback):
         self.docking_config = copy.deepcopy(docking_config)
         self.docking_config.mode = 'vina_score'
         self.val_freq = val_freq
+        self.bond_prediction = bond_prediction
         self.outputs = []
 
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
@@ -225,7 +300,7 @@ class ValidationCallback(Callback):
         
         with torch.no_grad():
             pl_module.dynamics.eval()
-            sum_batches, sum_loss, sum_loss_pos, sum_loss_type = 0, 0., 0., 0.
+            sum_batches, sum_loss, sum_loss_pos, sum_loss_type, sum_loss_bond = 0, 0., 0., 0., 0.
             pos_normalizer = torch.tensor(
                 pl_module.cfg.data.normalizer_dict.pos, dtype=torch.float32, device=pl_module.device,
             )
@@ -238,12 +313,17 @@ class ValidationCallback(Callback):
                     batch["protein"].pos = batch["protein"].pos / pos_normalizer
                 batch["ligand"].pos = batch["ligand"].pos / pos_normalizer
 
-                ligand_pos, ligand_v, batch_ligand, rgroup_mask = (
+                ligand_pos, ligand_v, batch_ligand, rgroup_mask, ligand_fc_bond, ligand_fc_bond_batch, scaf_fc_bond_mask = (
                     batch["ligand"].pos,
                     batch["ligand"].x,
                     batch["ligand"].batch,
                     batch["ligand"].rgroup_mask,
+                    
+                    batch["ligand"].fc_bond_types,
+                    batch["ligand"].fc_bond_types_batch,
+                    batch["ligand"].scaf_fc_bond_mask,
                 )
+                ligand_fc_edge_index = batch["ligand", "ligand"].edge_index
                             
                 if "protein" in batch.node_types:
                     protein_pos, protein_v, batch_protein = (
@@ -275,16 +355,17 @@ class ValidationCallback(Callback):
                     t = torch.tensor(
                         [t / float(pl_module.cfg.dynamics.discrete_steps)], 
                         dtype=ligand_pos.dtype, device=ligand_pos.device
-                    ).repeat(num_graphs, 1).index_select(
-                        0, batch_ligand[rgroup_mask]
-                    )  # [num_graphs, 1]
-
+                    ).repeat(num_graphs, 1)
+                    
                     if not pl_module.cfg.dynamics.use_discrete_t and not pl_module.cfg.dynamics.destination_prediction:
                         t = torch.clamp(t, min=pl_module.dynamics.t_min)  # clamp t to [t_min,1]
-
+                    
+                    t_node = t.index_select(0, batch_ligand[rgroup_mask])
+                    t_bond = t.index_select(0, ligand_fc_bond_batch[~scaf_fc_bond_mask])
                     # compute bfn loss  # TODO: convert to reconstruction loss
-                    c_loss, d_loss, discretised_loss = pl_module.dynamics.reconstruction_loss_one_step(
-                        t,
+                    c_loss, d_loss_atom, d_loss_bond = pl_module.dynamics.reconstruction_loss_one_step(
+                        t_node,
+                        t_bond,
                         protein_pos=protein_pos,
                         protein_v=protein_v,
                         batch_protein=batch_protein,
@@ -292,17 +373,23 @@ class ValidationCallback(Callback):
                         ligand_v=ligand_v,
                         batch_ligand=batch_ligand,
                         rgroup_mask=rgroup_mask,
+                        scaf_fc_bond_mask=scaf_fc_bond_mask,
+                        ligand_fc_bond=ligand_fc_bond,
+                        ligand_fc_bond_batch=ligand_fc_bond_batch,
+                        ligand_fc_edge_index=ligand_fc_edge_index,
                     )
                     
-                    loss = torch.mean(c_loss + pl_module.cfg.train.v_loss_weight * d_loss + discretised_loss)
+                    loss = torch.mean(c_loss + pl_module.cfg.train.v_loss_weight * d_loss_atom + d_loss_bond)
                     sum_loss += float(loss) * num_graphs
                     sum_loss_pos += float(c_loss.sum())
-                    sum_loss_type += float(d_loss.sum())
+                    sum_loss_type += float(d_loss_atom.sum())
+                    sum_loss_bond += float(d_loss_bond.sum())
 
             recon_loss = {
                 "val/recon_loss": sum_loss / sum_batches,
                 "val/recon_loss_pos": sum_loss_pos / sum_batches,
                 "val/recon_loss_type": sum_loss_type / sum_batches,
+                "val/recon_loss_bond": sum_loss_bond / sum_batches,
             }
             return recon_loss
 
@@ -360,7 +447,10 @@ class ValidationCallback(Callback):
         pl_module.log_dict(recon_loss, sync_dist=True)
         print(json.dumps(recon_loss, indent=4))
 
-        results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
+        if self.bond_prediction:
+            results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
+        else:
+            results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
 
         if len(results) == 0:
             print('skip validation, no mols are valid & complete')

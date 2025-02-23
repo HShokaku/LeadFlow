@@ -94,6 +94,7 @@ train:
   ckpt_freq: 1
   max_grad_norm: !SUB ${max_grad_norm}
   ft_ckpt_path: !SUB ${ft_ckpt_path}
+  bond_prediction: !SUB ${bond_prediction}
   optimizer: 
     type: "adam"
     lr: !SUB ${lr}

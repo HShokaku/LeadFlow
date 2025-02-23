@@ -1,6 +1,7 @@
 from typing import List, Tuple
 from rdkit import Chem
 from rdkit import Geometry
+from rdkit.Chem.rdchem import BondType
 import numpy as np
 import torch
 
@@ -12,6 +13,15 @@ import torch
 ATOM_FAMILIES = ['Acceptor', 'Donor', 'Aromatic', 'Hydrophobe', 'LumpedHydrophobe', 'NegIonizable', 'PosIonizable',
                  'ZnBinder']
 ATOM_FAMILIES_ID = {s: i for i, s in enumerate(ATOM_FAMILIES)}
+
+BOND_TYPES_TO_INDEX = {
+    BondType.UNSPECIFIED: 0,
+    BondType.SINGLE: 1,
+    BondType.DOUBLE: 2,
+    BondType.TRIPLE: 3,
+}
+
+INDEX_TO_BOND_TYPES = {v: k for k, v in BOND_TYPES_TO_INDEX.items()}
 
 MAP_ATOM_TYPE_AROMATIC_TO_INDEX = {
     ("Si", False): 0,
