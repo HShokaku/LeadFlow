@@ -16,7 +16,7 @@ from src.models.bfn4sbdd_bond import BFN4SBDDScoreModel
 import src.evaluation.utils.atom_num as atom_num
 import src.utils.transforms as trans
 
-from src.utils.train import get_optimizer, get_scheduler, skip_computation_on_oom
+from src.utils.train import get_optimizer, get_scheduler
 
 
 def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, rgroup_mask, mode="protein"):
@@ -55,7 +55,7 @@ class SBDDTrainLoopBond(pl.LightningModule):
         pass
     
     
-    @skip_computation_on_oom(return_value=None, error_message="Skipping batch due to OOM")
+    # @skip_computation_on_oom(return_value=None, error_message="Skipping batch due to OOM")
     def training_step(self, batch: HeteroData, batch_idx):
         ligand_pos, ligand_v, batch_ligand, rgroup_mask, ligand_fc_bond, ligand_fc_bond_batch, scaf_fc_bond_mask = (
             batch["ligand"].pos,
