@@ -249,7 +249,7 @@ if __name__ == "__main__":
         max_epochs=cfg.train.epochs,
         check_val_every_n_epoch=cfg.train.ckpt_freq,
         # devices=[1],
-        devices=[1,2], strategy="ddp_find_unused_parameters_false",
+        devices=[0,1,2,3,4,5,6,7], strategy="ddp_find_unused_parameters_false",
         logger=wandb_logger,
         num_sanity_val_steps=0,
         inference_mode=not cfg.test_only,
