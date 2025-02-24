@@ -36,7 +36,7 @@ dynamics:
       num_layers: 9
       hidden_dim: 128
       n_heads: 16
-      edge_feat_dim: 9  # edge type feat
+      edge_feat_dim: 4  # edge type feat
       num_r_gaussian: 20
       knn: 32 # !
       # num_node_types: 8

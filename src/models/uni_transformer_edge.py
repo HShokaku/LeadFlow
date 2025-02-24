@@ -361,28 +361,36 @@ class UniTransformerO2TwoUpdateGeneralBond(nn.Module):
         return edge_index
 
     def _build_edge_type(self, edge_index, mask_rgroup, mask_scaffold):
-        mask_protein = ~(mask_scaffold | mask_rgroup)
+        # mask_protein = ~(mask_scaffold | mask_rgroup)
+        mask_ligand = mask_scaffold | mask_rgroup
         src, dst = edge_index
         edge_type = torch.zeros(len(src)).to(edge_index)
 
-        n_src_protein = mask_protein[src] == 1
-        n_dst_protein = mask_protein[dst] == 1
-        n_src_scaffold = mask_scaffold[src] == 1
-        n_dst_scaffold = mask_scaffold[dst] == 1
-        n_src_rgroup = mask_rgroup[src] == 1
-        n_dst_rgroup = mask_rgroup[dst] == 1
+        # n_src_protein = mask_protein[src] == 1
+        # n_dst_protein = mask_protein[dst] == 1
+        # n_src_scaffold = mask_scaffold[src] == 1
+        # n_dst_scaffold = mask_scaffold[dst] == 1
+        # n_src_rgroup = mask_rgroup[src] == 1
+        # n_dst_rgroup = mask_rgroup[dst] == 1
 
-        edge_type[n_src_rgroup & n_dst_rgroup] = 0       # rgroup-rgroup
-        edge_type[n_src_rgroup & n_dst_scaffold] = 1     # rgroup-scaffold
-        edge_type[n_src_rgroup & n_dst_protein] = 2      # rgroup-protein
-        edge_type[n_src_scaffold & n_dst_rgroup] = 3     # scaffold-rgroup
-        edge_type[n_src_scaffold & n_dst_scaffold] = 4   # scaffold-scaffold
-        edge_type[n_src_scaffold & n_dst_protein] = 5    # scaffold-protein
-        edge_type[n_src_protein & n_dst_rgroup] = 6      # protein-rgroup
-        edge_type[n_src_protein & n_dst_scaffold] = 7    # protein-scaffold
-        edge_type[n_src_protein & n_dst_protein] = 8     # protein-protein
+        # edge_type[n_src_rgroup & n_dst_rgroup] = 0       # rgroup-rgroup
+        # edge_type[n_src_rgroup & n_dst_scaffold] = 1     # rgroup-scaffold
+        # edge_type[n_src_rgroup & n_dst_protein] = 2      # rgroup-protein
+        # edge_type[n_src_scaffold & n_dst_rgroup] = 3     # scaffold-rgroup
+        # edge_type[n_src_scaffold & n_dst_scaffold] = 4   # scaffold-scaffold
+        # edge_type[n_src_scaffold & n_dst_protein] = 5    # scaffold-protein
+        # edge_type[n_src_protein & n_dst_rgroup] = 6      # protein-rgroup
+        # edge_type[n_src_protein & n_dst_scaffold] = 7    # protein-scaffold
+        # edge_type[n_src_protein & n_dst_protein] = 8     # protein-protein
         
-        edge_type = F.one_hot(edge_type, num_classes=9)
+        n_src = mask_ligand[src] == 1
+        n_dst = mask_ligand[dst] == 1
+        edge_type[n_src & n_dst] = 0
+        edge_type[n_src & ~n_dst] = 1
+        edge_type[~n_src & n_dst] = 2
+        edge_type[~n_src & ~n_dst] = 3
+        
+        edge_type = F.one_hot(edge_type, num_classes=4)
         return edge_type
 
     def forward(
