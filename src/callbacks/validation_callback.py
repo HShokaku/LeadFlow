@@ -107,6 +107,7 @@ def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
             mol_pos_range_list.append(mol_pos_range)
 
             Chem.SanitizeMol(mol)
+            Chem.AssignStereochemistryFrom3D(mol)
             smiles = Chem.MolToSmiles(mol)
             complete = smiles is not None and '.' not in smiles
             validity = smiles is not None
