@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from torch_geometric.data import Data, Batch
 
 # from core.utils.warmup import GradualWarmupScheduler
@@ -126,16 +127,26 @@ def get_scheduler(train_cfg, optimizer):
 def skip_computation_on_oom(return_value=None, error_message=None):
     def decorator(func):
         def wrapper(*args, **kwargs):
+            oom_flag = torch.tensor([0], device="cuda")
+            result = None
             try:
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     if error_message is not None:
                         print(error_message)
-                    return return_value
+                    torch.cuda.empty_cache()
+                    oom_flag = torch.tensor([1], device="cuda")
                 else:
-                    raise e
-
+                    raise e 
+            
+            if dist.is_initialized():
+                dist.all_reduce(oom_flag, op=dist.ReduceOp.MAX)
+            
+            if oom_flag.item() > 0:
+                return return_value
+            return result
+        
         return wrapper
 
     return decorator
