@@ -12,11 +12,12 @@ from torch_geometric.data import HeteroData, Batch
 
 from src.config.config import Config
 from src.models.bfn4sbdd_bond import BFN4SBDDScoreModel
+from src.datasets.pl_data import FOLLOW_BATCH
 
 import src.evaluation.utils.atom_num as atom_num
 import src.utils.transforms as trans
 
-from src.utils.train import get_optimizer, get_scheduler
+from src.utils.train import get_optimizer, get_scheduler, skip_computation_on_oom
 
 
 def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, rgroup_mask, mode="protein"):
@@ -55,7 +56,7 @@ class SBDDTrainLoopBond(pl.LightningModule):
         pass
     
     
-    # @skip_computation_on_oom(return_value=None, error_message="Skipping batch due to OOM")
+    @skip_computation_on_oom(return_value=None, error_message="⚠️ OOM detected, skipping batch...")
     def training_step(self, batch: HeteroData, batch_idx):
         ligand_pos, ligand_v, batch_ligand, rgroup_mask, ligand_fc_bond, ligand_fc_bond_batch, scaf_fc_bond_mask = (
             batch["ligand"].pos,
@@ -209,38 +210,97 @@ class SBDDTrainLoopBond(pl.LightningModule):
          
         # determine the number of atoms in the ligand
         if sample_num_atoms == 'prior':
-            ligand_num_atoms = []
+            ligand_num_atoms, ligand_num_edges = [], []
             rgroup_mask, ligand_pos, ligand_v = [], [], []
+            scaf_fc_bond_mask, ligand_fc_bond = [], []
             data_batch = []
             while len(ligand_num_atoms) < len(batch):
                 data_id = len(ligand_num_atoms)
                 data = batch[data_id]
                 pocket_size = atom_num.get_space_size(data["protein"].pos.detach().cpu().numpy() * self.cfg.data.normalizer_dict.pos)
                 num_atoms = atom_num.sample_atom_num(pocket_size).astype(int)
-                update_num_atoms = num_atoms - len(data["ligand"].pos[~data["ligand"].rgroup_mask])
+                num_scaf_atoms = len(data["ligand"].pos[~data["ligand"].rgroup_mask])
+                update_num_atoms = num_atoms - num_scaf_atoms
                 # update_num_atoms must > 0
                 if update_num_atoms <= 0:
                     continue
                 
+                # ligand atom update
                 ligand_num_atoms.append(num_atoms)
                 # update ligand_pos and ligand_v, rgroup_mask
                 data["ligand"].pos = torch.cat([data["ligand"].pos[~data["ligand"].rgroup_mask], torch.zeros(update_num_atoms, 3, device=data["ligand"].pos.device)])
                 data["ligand"].x = torch.cat([data["ligand"].x[~data["ligand"].rgroup_mask], torch.zeros(update_num_atoms, device=data["ligand"].x.device)])
                 # update rgroup_mask, (~data["ligand"].rgroup_mask).sum().item() is the number of atoms in the scaffold, so the rgroup_mask is the rest
-                data["ligand"].rgroup_mask = torch.arange(num_atoms, device=data["ligand"].rgroup_mask.device) >= (~data["ligand"].rgroup_mask).sum().item()
+                # data["ligand"].rgroup_mask = torch.arange(num_atoms, device=data["ligand"].rgroup_mask.device) >= (~data["ligand"].rgroup_mask).sum().item()
+                
+                # ligand edge index update
+                scaf_indices = torch.where(data["ligand"].rgroup_mask == False)[0]
+                indices_mapping = torch.full((len(data["ligand"].rgroup_mask),), -1, dtype=torch.long, device=data["ligand"].x.device)
+                indices_mapping[scaf_indices] = torch.arange(len(scaf_indices), device=data["ligand"].x.device)
+                
+                # 从batch里单个拿出来的edge index是没有offset的，所以不用担心
+                # update scaf edge index 
+                old_edge_index = data["ligand", "ligand"].edge_index
+                scaf_edge_mask = data["ligand"].scaf_fc_bond_mask
+                updated_scaf_edge_index = indices_mapping[old_edge_index[:, scaf_edge_mask]]
+                
+                ## construct new complete edge index
+                edges = torch.combinations(torch.arange(num_atoms, device=data["ligand"].x.device), r=2).T
+                edges_rev = edges.flip(0)
+                complete_edge_index = torch.cat([edges, edges_rev], dim=1)
+                
+                ## find edges that contain new atoms
+                scaffold_edge_mask = (complete_edge_index[0] < num_scaf_atoms) & (complete_edge_index[1] < num_scaf_atoms)
+                new_edges = complete_edge_index[:, ~scaffold_edge_mask]
+                data["ligand", "ligand"].edge_index = torch.cat([updated_scaf_edge_index, new_edges], dim=1)
+                
+                # ligand bond update
+                num_edges = num_atoms * (num_atoms - 1)
+                ligand_num_edges.append(num_edges)
+                num_scaf_edges = len(data["ligand"].fc_bond_types[data["ligand"].scaf_fc_bond_mask])
+                update_num_edges = num_edges - num_scaf_edges
+                data["ligand"].fc_bond_types = torch.cat([
+                    data["ligand"].fc_bond_types[data["ligand"].scaf_fc_bond_mask], 
+                    torch.zeros(update_num_edges, device=data["ligand"].fc_bond_types.device)
+                ])
+                
+                # mask update
+                data["ligand"].scaf_fc_bond_mask = torch.cat([
+                    torch.ones(num_scaf_edges, dtype=torch.bool, device=data["ligand"].scaf_fc_bond_mask.device),
+                    torch.zeros(update_num_edges, dtype=torch.bool, device=data["ligand"].scaf_fc_bond_mask.device)
+                ])
+                data["ligand"].rgroup_mask = torch.cat([
+                    torch.zeros(num_scaf_atoms, dtype=torch.bool, device=data["ligand"].rgroup_mask.device),
+                    torch.ones(update_num_atoms, dtype=torch.bool, device=data["ligand"].rgroup_mask.device)
+                ])
+
                 data_batch.append(data)
                 
                 assert len(data["ligand"].pos) == num_atoms and len(data["ligand"].x) == num_atoms and len(data["ligand"].rgroup_mask) == num_atoms
                 rgroup_mask.append(data["ligand"].rgroup_mask)
                 ligand_pos.append(data["ligand"].pos)
                 ligand_v.append(data["ligand"].x.long())
-            batch = Batch.from_data_list(data_batch)
+                
+                assert len(data["ligand"].fc_bond_types) == num_edges and len(data["ligand"].scaf_fc_bond_mask) == num_edges
+                scaf_fc_bond_mask.append(data["ligand"].scaf_fc_bond_mask)
+                ligand_fc_bond.append(data["ligand"].fc_bond_types)
+                
+            batch = Batch.from_data_list(data_batch, follow_batch=FOLLOW_BATCH)
             batch["ligand"].x = batch["ligand"].x.long()
+            batch["ligand"].fc_bond_types = batch["ligand"].fc_bond_types.long()
+            
             batch_ligand = torch.repeat_interleave(torch.arange(len(batch)), torch.tensor(ligand_num_atoms)).to(protein_pos.device)
             ligand_num_atoms = torch.tensor(ligand_num_atoms, dtype=torch.long, device=protein_pos.device)
             rgroup_mask = torch.cat(rgroup_mask, dim=0).bool()
             ligand_pos = torch.cat(ligand_pos, dim=0)
             ligand_v = torch.cat(ligand_v, dim=0).long()
+            
+            scaf_fc_bond_mask = torch.cat(scaf_fc_bond_mask, dim=0).bool()
+            ligand_fc_bond = torch.cat(ligand_fc_bond, dim=0).long()
+            # ligand_fc_bond_batch = torch.repeat_interleave(torch.arange(len(batch)), torch.tensor(ligand_num_edges)).to(protein_pos.device)
+            ligand_fc_bond_batch = batch["ligand"].fc_bond_types_batch
+            ligand_fc_edge_index = batch["ligand", "ligand"].edge_index
+            
         elif sample_num_atoms == 'ref':
             ligand_pos, ligand_v, rgroup_mask, ligand_fc_bond, ligand_fc_bond_batch, scaf_fc_bond_mask = (
                 batch["ligand"].pos,
