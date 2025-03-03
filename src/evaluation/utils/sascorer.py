@@ -18,7 +18,7 @@
 from __future__ import print_function
 
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import rdFingerprintGenerator, rdMolDescriptors
 from six.moves import cPickle
 from six import iteritems
 
@@ -28,6 +28,7 @@ from collections import defaultdict
 import os.path as op
 
 _fscores = None
+mfpgen = rdFingerprintGenerator.GetMorganGenerator(radius=2)
 
 
 def readFragmentScores(name='fpscores'):
@@ -55,8 +56,8 @@ def calculateScore(m):
         readFragmentScores()
 
     # fragment score
-    fp = rdMolDescriptors.GetMorganFingerprint(m,
-                                               2)  # <- 2 is the *radius* of the circular fingerprint
+    # fp = rdMolDescriptors.GetMorganFingerprint(m,2)  # <- 2 is the *radius* of the circular fingerprint
+    fp = mfpgen.GetSparseCountFingerprint(m)
     fps = fp.GetNonzeroElements()
     score1 = 0.
     nf = 0
