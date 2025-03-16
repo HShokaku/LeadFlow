@@ -127,7 +127,7 @@ class CondMolGenMetric(object):
             
             return item
                 
-        generated_results = Parallel(n_jobs=4)(delayed(get_chem)(item) for item in tqdm(generated, total=len(generated), desc='Chem eval'))
+        generated_results = Parallel(n_jobs=8)(delayed(get_chem)(item) for item in tqdm(generated, total=len(generated), desc='Chem eval'))
         return generated_results
         
         
