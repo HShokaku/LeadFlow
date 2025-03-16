@@ -226,6 +226,7 @@ if __name__ == "__main__":
             tr_cfg.dynamics.sigma1_coord = cfg.dynamics.sigma1_coord
             tr_cfg.dynamics.sampling_strategy = cfg.dynamics.sampling_strategy
             tr_cfg.train.batch_size = cfg.train.batch_size
+            tr_cfg.train.bond_prediction = cfg.train.bond_prediction
             tr_cfg.data = cfg.data
             tr_cfg.seed = cfg.seed
             tr_cfg.data.name = cfg.data.name
@@ -284,6 +285,7 @@ if __name__ == "__main__":
                 atom_type_one_hot=False,
                 single_bond=True,
                 docking_config=cfg.evaluation.docking_config,
+                bond_prediction=cfg.train.bond_prediction,
             ),
             ModelCheckpoint(
                 monitor="val/recon_loss",

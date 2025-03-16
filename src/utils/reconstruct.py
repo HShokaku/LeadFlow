@@ -527,13 +527,13 @@ def reconstruct_from_generated_with_bond(xyz, atomic_nums, bond_index, bond_type
                 raise Exception('unknown bond order {}'.format(type_this))
 
     mol = rd_mol.GetMol()
-    if check_validity:
-        try:
-            mol = modify_submol(mol)
-            Chem.SanitizeMol(mol)
-            # fixed = True
-        except Exception as e:
-            raise MolReconError()
+    # if check_validity:
+    #     try:
+    #         mol = modify_submol(mol)
+    #         Chem.SanitizeMol(mol)
+    #         # fixed = True
+    #     except Exception as e:
+    #         raise MolReconError()
             # fixed = False
 
         # if not fixed:

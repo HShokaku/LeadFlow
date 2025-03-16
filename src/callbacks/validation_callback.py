@@ -24,7 +24,7 @@ from src.evaluation.utils import convert_atomcloud_to_mol_smiles, save_mol_list
 from src.evaluation.visualization import visualize, visualize_chain
 from src.utils import transforms as trans 
 from src.evaluation.utils import timing
-from src.utils.reconstruct import reconstruct_from_generated, reconstruct_from_generated_with_bond, MolReconError
+from src.utils.reconstruct import reconstruct_from_generated, reconstruct_from_generated_with_bond, modify_submol
 
 # this file contains the model which we used to visualize the
 
@@ -56,7 +56,7 @@ def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, rgroup_mask
 
 
 def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
-    results = []
+    results, fail_results = [], []
     n_recon, n_complete, n_valid = 0, 0, 0
     n_total = len(out_list)
     center_change_list, mol_pos_range_list = [], []
@@ -106,6 +106,7 @@ def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
             center_change_list.append(center_change)
             mol_pos_range_list.append(mol_pos_range)
 
+            mol = modify_submol(mol)
             Chem.SanitizeMol(mol)
             Chem.AssignStereochemistryFrom3D(mol)
             smiles = Chem.MolToSmiles(mol)
@@ -120,9 +121,13 @@ def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
             results.append(res)
         except Exception as e:
             print(e)
+            res['smiles'] = Chem.MolToSmiles(mol)
+            res['complete'] = False
+            res['validity'] = False
+            fail_results.append(res)
             continue
 
-    return results, {
+    return results, fail_results, {
         'recon_success': n_recon / n_total,
         'completeness': n_complete / n_total,
         'validity': n_valid / n_total,
@@ -449,7 +454,7 @@ class ValidationCallback(Callback):
         print(json.dumps(recon_loss, indent=4))
 
         if self.bond_prediction:
-            results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
+            results, fail_results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
         else:
             results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
 
@@ -668,7 +673,7 @@ class VisualizeMolAndTrajCallback(Callback):
 
 
 class DockingTestCallback(Callback):
-    def __init__(self, dataset, atom_enc_mode, atom_decoder, atom_type_one_hot, single_bond, docking_config) -> None:
+    def __init__(self, dataset, atom_enc_mode, atom_decoder, atom_type_one_hot, single_bond, docking_config, bond_prediction) -> None:
         super().__init__()
         self.dataset = dataset
         self.atom_enc_mode = atom_enc_mode
@@ -676,6 +681,7 @@ class DockingTestCallback(Callback):
         self.single_bond = single_bond
         self.type_one_hot = atom_type_one_hot
         self.docking_config = docking_config
+        self.bond_prediction = bond_prediction
         self.outputs = []
     
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
@@ -711,7 +717,10 @@ class DockingTestCallback(Callback):
     ) -> None:
         super().on_test_epoch_end(trainer, pl_module)
 
-        results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
+        if self.bond_prediction:
+            results, fail_results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
+        else:
+            results, recon_dict = reconstruct_mol_and_filter_invalid_mr(self.outputs)
 
         if len(results) == 0:
             print('skip validation, no mols are valid & complete')
@@ -729,6 +738,7 @@ class DockingTestCallback(Callback):
 
         bad_case_dir = os.path.join(path, 'bad_cases')
         os.makedirs(bad_case_dir, exist_ok=True)
+        torch.save(fail_results, os.path.join(bad_case_dir, f'invalid_cases.pt'))
         print(f'bad cases dumped to {bad_case_dir}')
 
         out_metrics = self.metric.evaluate(results, bad_case_dir)
