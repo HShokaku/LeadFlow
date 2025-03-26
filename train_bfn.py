@@ -53,6 +53,18 @@ def get_dataloader(cfg):
         val_loader = dataset.val_dataloader(follow_batch=FOLLOW_BATCH)
         test_loader = dataset.test_dataloader(follow_batch=FOLLOW_BATCH)
         
+    elif 'selfGenBench' in cfg.data.name:
+        if cfg.train.bond_prediction:
+            transform = 'bond'
+        else:
+            transform = 'simple'
+        dataset = get_datamodule(cfg.data.name, transform, cfg.train.batch_size)
+        dataset.setup('test')
+        
+        train_loader = dataset.test_dataloader(follow_batch=FOLLOW_BATCH) # not used for train or val
+        val_loader = dataset.test_dataloader(follow_batch=FOLLOW_BATCH)
+        test_loader = dataset.test_dataloader(follow_batch=FOLLOW_BATCH)
+    
     elif 'SureChEMBL' in cfg.data.name:
         dataset = get_datamodule(cfg.data.name, cfg.train.batch_size)
         dataset.setup('fit')
@@ -125,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--config_file", type=str, default="configs/default.yaml",)
     parser.add_argument("--exp_name", type=str, default="debug")
     parser.add_argument("--revision", type=str, default="default")
+    parser.add_argument("--data_name", type=str, default="chembl")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--wandb_resume_id", type=str, default=None)

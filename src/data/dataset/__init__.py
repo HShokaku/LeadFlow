@@ -1,3 +1,4 @@
 from src.data.dataset.surechembl import Multi_R_anchor_Dataset, Multi_R_anchor_DataModule
 from src.data.dataset.crossdocked import Multi_R_anchor_crossdock_Dataset, Multi_R_anchor_crossdock_DataModule
 from src.data.dataset.chembl import chembl_Dataset, chembl_DataModule
+from src.data.dataset.selfGenBench import selfGenBench_Dataset, selfGenBench_DataModule

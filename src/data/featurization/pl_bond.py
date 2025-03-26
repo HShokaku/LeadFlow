@@ -71,8 +71,8 @@ class ProteinLigandBondFeaturization:
 
 
             if len(match) == len(x):
-                # If the scaffold is the same as the ligand, we mask all atoms and bonds for denovo generation training
-                if mode == 'train' or mode == 'val':
+                # If the scaffold is the same as the ligand, we mask all atoms and bonds for denovo generation mode
+                if mode == 'train' or mode == 'val' or mode == 'de_novo':
                     print(f"Found scaffold all matches for {uuid}")
                     match = []
                 # In sample mode, if the scaffold is the same as the ligand, non atom or bond is masked, rgroup will be added in prior sampling mode

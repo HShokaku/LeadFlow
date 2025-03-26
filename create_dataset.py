@@ -18,5 +18,5 @@ if __name__ == '__main__':
     data_module = get_datamodule(args.dataset_name, args.transform)
     
     print(f"Creating dataset {args.dataset_name} with pre_transform {data_module.pre_transform} and pre_filter {data_module.pre_filter}")
-    data_module.setup("fit")
+    # data_module.setup("fit")
     data_module.setup("test")

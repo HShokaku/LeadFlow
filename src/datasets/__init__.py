@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import Subset
 
 from src.data.dataset import chembl_Dataset, chembl_DataModule
+from src.data.dataset import selfGenBench_Dataset, selfGenBench_DataModule
 from src.data.featurization import ProteinLigandSimpleFeaturization, ProteinLigandBondFeaturization
 # from src.datasets.pl_pair_dataset import PocketLigandPairDataset, PocketLigandPairDatasetFeaturized, PocketLigandGeneratedPairDataset, PocketLigandPairDatasetFeaturized_mat2a
 # from src.datasets.pdbbind import PDBBindDataset
@@ -46,6 +47,9 @@ def get_datamodule(dataset_name: str, transform: str, batch_size: int = 32):
     #     dataset_constructor = Multi_R_anchor_crossdock_DataModule
     #     pre_transform = ProteinLigandSimpleFeaturization()
     #     pre_filter = None
+    elif dataset_name == "selfGenBench":
+        dataset_constructor = selfGenBench_DataModule
+        pre_filter = None
     else:
         raise NotImplementedError(f"Dataset {dataset_name} not supported")
     
