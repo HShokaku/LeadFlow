@@ -484,9 +484,11 @@ def modify_submol(mol):  # modify mols containing O=[NH]O -> NO2
     for fragment in sub_fragments:
         atomic_nums = np.array([mol.GetAtomWithIdx(atom).GetAtomicNum() for atom in fragment])
         idx_atom_N = fragment[np.where(atomic_nums == 7)[0][0]]
-        # idx_atom_O = fragment[np.where(atomic_nums == 8)[0][0]]
+        idx_atom_O1 = fragment[np.where(atomic_nums == 8)[0][0]]
+        idx_atom_O2 = fragment[np.where(atomic_nums == 8)[0][1]]
         mol.GetAtomWithIdx(idx_atom_N).SetFormalCharge(1)  # set N to N+
-        # mol.GetAtomWithIdx(idx_atom_O).SetFormalCharge(-1)  # set O to O-
+        mol.GetAtomWithIdx(idx_atom_O1).SetFormalCharge(0)  # set one =O has no charge
+        mol.GetAtomWithIdx(idx_atom_O2).SetFormalCharge(-1)  # set O to O-
     return mol
 
 def reconstruct_from_generated_with_bond(xyz, atomic_nums, bond_index, bond_type, check_validity=True):
