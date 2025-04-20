@@ -183,39 +183,54 @@ class NormalizerCallback(Callback):
         h = F.one_hot(torch.argmax(h, dim=-1), num_classes=h.shape[-1])
         return pos, h
 
+    def _normalize_positions(self, batch: HeteroData):
+        if self.device is None:
+            self.device = batch.to_homogeneous().pos.device
+            self.pos_normalizer = self.pos_normalizer.to(self.device)
+
+        ligand_keys = [k for k in batch.node_types if "ligand" in k]
+        protein_keys = [k for k in batch.node_types if "protein" in k]
+
+        for key in protein_keys:
+            batch[key].pos = batch[key].pos / self.pos_normalizer
+        for key in ligand_keys:
+            batch[key].pos = batch[key].pos / self.pos_normalizer
+            
     def on_train_batch_start(
         self, trainer: Trainer, pl_module: LightningModule, batch: HeteroData, batch_idx: int
     ) -> None:
         super().on_train_batch_start(trainer, pl_module, batch, batch_idx)
-        if self.device is None:
-            self.device = batch["ligand"].pos.device
-            self.pos_normalizer = self.pos_normalizer.to(self.device)
-        if "protein" in batch.node_types:
-            batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
-        batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
+        # if self.device is None:
+        #     self.device = batch["ligand"].pos.device
+        #     self.pos_normalizer = self.pos_normalizer.to(self.device)
+        # if "protein" in batch.node_types:
+        #     batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
+        # batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
+        self._normalize_positions(batch)
 
     def on_validation_batch_start(
         self, trainer: Trainer, pl_module: LightningModule, batch: HeteroData, batch_idx: int
     ) -> None:
         super().on_validation_batch_start(trainer, pl_module, batch, batch_idx)
-        if self.device is None:
-            self.device = batch["ligand"].pos.device
-            self.pos_normalizer = self.pos_normalizer.to(self.device)
-        if "protein" in batch.node_types:
-            batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
-        batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
+        # if self.device is None:
+        #     self.device = batch["ligand"].pos.device
+        #     self.pos_normalizer = self.pos_normalizer.to(self.device)
+        # if "protein" in batch.node_types:
+        #     batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
+        # batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
+        self._normalize_positions(batch)
 
     def on_test_batch_start(
         self, trainer: Trainer, pl_module: LightningModule, batch: HeteroData, batch_idx: int
     ) -> None:
         super().on_test_batch_start(trainer, pl_module, batch, batch_idx)
-        if self.device is None:
-            self.device = batch["ligand"].pos.device
-            self.pos_normalizer = self.pos_normalizer.to(self.device)
-        if "protein" in batch.node_types:
-            batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
-        batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
-      
+        # if self.device is None:
+        #     self.device = batch["ligand"].pos.device
+        #     self.pos_normalizer = self.pos_normalizer.to(self.device)
+        # if "protein" in batch.node_types:
+        #     batch["protein"].pos = batch["protein"].pos / self.pos_normalizer
+        # batch["ligand"].pos = batch["ligand"].pos / self.pos_normalizer
+        self._normalize_positions(batch)
 
 class RecoverCallback(Callback):
     def __init__(self, latest_ckpt, recover_trigger_loss=1e3, resume=False) -> None:
