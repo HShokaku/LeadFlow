@@ -119,7 +119,7 @@ class SBDDTrainLoopBondDPO(pl.LightningModule):
         # reward
         reward_w = batch["w_affinity"]
         reward_l = batch["l_affinity"]
-        
+        # import pdb; pdb.set_trace()
         rewards = torch.stack([reward_w, reward_l], dim=1)
         rewards = F.softmax(rewards * self.cfg.train.beta_reward, dim=1)
         
@@ -247,12 +247,21 @@ class SBDDTrainLoopBondDPO(pl.LightningModule):
         d_loss_atom = (d_loss_atom_w - d_loss_atom_ref_w) - (d_loss_atom_l - d_loss_atom_ref_l)
         d_loss_bond = (d_loss_bond_w - d_loss_bond_ref_w) - (d_loss_bond_l - d_loss_bond_ref_l)
         
-        c_loss = torch.mean(reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * c_loss)) +  \
-            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * c_loss)))
-        d_loss_atom = torch.mean(reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * d_loss_atom)) +  \
-            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * d_loss_atom)))
-        d_loss_bond = torch.mean(reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * d_loss_bond)) +  \
-            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * d_loss_bond)))
+        c_loss = torch.mean(
+            # c_loss = (c_loss_w - c_loss_ref_w) - (c_loss_l - c_loss_ref_l) = [-4.8741, -0.7820, -3.6849]
+            reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * c_loss)) +  \
+            # winner_loss = (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * c_loss)) = [2.6060e-11, 1.9843e-02, 9.9643e-09]
+            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * c_loss))
+            # loser_loss = (-F.logsigmoid(self.cfg.train.dpo_beta * c_loss)) = [24.3706,  3.9298, 18.4243]
+        )
+        d_loss_atom = torch.mean(
+            reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * d_loss_atom)) +  \
+            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * d_loss_atom))
+        )
+        d_loss_bond = torch.mean(
+            reward_w * (-F.logsigmoid(-1 * self.cfg.train.dpo_beta * d_loss_bond)) +  \
+            reward_l * (-F.logsigmoid(self.cfg.train.dpo_beta * d_loss_bond))
+        )
         
 
         loss = torch.mean(c_loss + self.cfg.train.v_loss_weight * d_loss_atom + d_loss_bond)

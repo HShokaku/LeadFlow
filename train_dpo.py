@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--ft_ckpt_path', type=str, default=None)
     
     # dpo params
-    parser.add_argument('--beta_reward', type=float, default=6.6)
+    parser.add_argument('--beta_reward', type=float, default=1)
     parser.add_argument('--dpo_beta', type=float, default=5)
 
     # bfn params
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         default_root_dir=cfg.accounting.logdir,
         max_epochs=cfg.train.epochs,
         check_val_every_n_epoch=cfg.train.ckpt_freq,
-        # devices=[1],
+        # devices=[2],
         devices=[2,3,4,5,6,7], strategy="ddp_find_unused_parameters_false",
         logger=wandb_logger,
         num_sanity_val_steps=0,
