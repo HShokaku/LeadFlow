@@ -184,9 +184,9 @@ class BFNBase(nn.Module):
             alpha* ((K * target_x) - 1), ((K * alpha) ** 0.5)
         ),1)  # [D, K]
         y = sender_dist.sample(torch.Size([n_samples])) 
-        loss = N * (sender_dist.log_prob(y) - receiver_dist.log_prob(y)).mean(0).mean(
-            -1, keepdims=True
-        )
+        # loss = N * (sender_dist.log_prob(y) - receiver_dist.log_prob(y)).mean(0).mean(
+        #     -1, keepdims=True
+        # ) original loss
         # loss = (
         #         (sender_dist.log_prob(y) - receiver_dist.log_prob(y))
         #         .mean(0)
@@ -194,7 +194,15 @@ class BFNBase(nn.Module):
         #         .mean(1, keepdims=True)
         #     )
         # #
-        return loss.mean()
+        # return loss.mean() # original loss
+        
+        loss = N * scatter_mean(
+            (sender_dist.log_prob(y) - receiver_dist.log_prob(y)).mean(0),
+            segment_ids,
+            dim=0,
+        )
+
+        return loss
 
     def dtime4discrete_loss(self, i, N, beta1, one_hot_x, p_0, K, segment_ids=None):
         # i in {1,n}
