@@ -79,17 +79,17 @@ def get_dataloader_from_pdb(cfg):
     return test_loader
 
 
-def call(protein_fn, ligand_fn, scaffold_fn,ckpt_path='./checkpoints/last.ckpt', output_path='./output',
+def call(protein_fn, ligand_fn, scaffold_fn, batch_size,ckpt_path='./checkpoints/last.ckpt', output_path='./output',
          num_samples=10, sample_steps=100, sample_num_atoms='prior', devices=[0],
          beta1=1.5, sigma1_coord=0.03, sampling_strategy='end_back', seed=1234):
     
     cfg = Config('./checkpoints/config.yaml')
-    seed_everything(cfg.seed)
     
     cfg.evaluation.protein_path = protein_fn
     cfg.evaluation.ligand_path = ligand_fn
     cfg.evaluation.scaffold_path = scaffold_fn
     cfg.evaluation.ckpt_path = ckpt_path
+    cfg.evaluation.batch_size = batch_size
     cfg.test_only = True
     cfg.no_wandb = True
     cfg.evaluation.num_samples = num_samples
@@ -132,6 +132,9 @@ def call(protein_fn, ligand_fn, scaffold_fn,ckpt_path='./checkpoints/last.ckpt',
         ],
     )
 
+    rank = trainer.local_rank
+    seed_everything(cfg.seed + rank, workers=True)
+
     trainer.test(model, dataloaders=test_loader, ckpt_path=cfg.evaluation.ckpt_path)
 
 
@@ -145,7 +148,9 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_path', type=str, default='./checkpoints/last.ckpt')
     parser.add_argument('--sample_num_atoms', choices=['prior', 'ref'], default='prior')
     parser.add_argument('--output_path', type=str, default=None)
+    parser.add_argument('--batch_size', type=int, default=50)
     parser.add_argument('--num_samples', type=int, default=1000)
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--devices', type=int, nargs='+', default=[0])
     
     args = parser.parse_args()
@@ -159,9 +164,11 @@ if __name__ == '__main__':
         args.protein_path, 
         args.ligand_path,
         args.scaffold_path,
+        args.batch_size,
         ckpt_path=args.ckpt_path,
         sample_num_atoms=args.sample_num_atoms,
         output_path=args.output_path,
         num_samples=args.num_samples,
         devices=args.devices,
+        seed=args.seed,
     )
