@@ -52,6 +52,10 @@ class SBDDTrainLoopBond(pl.LightningModule):
         self.time_records = np.zeros(6)
         self.log_time = False
 
+    # def setup(self, stage: str)-> None:
+    #     # if stage == "fit":
+    #     self.dynamics = torch.compile(self.dynamics)
+
     def forward(self, x):
         pass
     
@@ -85,12 +89,13 @@ class SBDDTrainLoopBond(pl.LightningModule):
             batch_protein = torch.empty([0], dtype=ligand_pos.dtype, device=ligand_pos.device)
 
 
-        # NOT USED
         with torch.no_grad():
             # add noise to protein_pos
             protein_noise = torch.randn_like(protein_pos) * self.cfg.train.pos_noise_std # 0
             gt_protein_pos = protein_pos + protein_noise
             # random rotation as data aug
+            
+            # NOT USED
             if self.cfg.train.random_rot:
                 M = np.random.randn(3, 3)
                 Q, __ = np.linalg.qr(M)
