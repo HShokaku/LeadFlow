@@ -33,6 +33,7 @@ class DockingTestCallback(Callback):
         self.output_path = output_path
         self.bond_prediction = bond_prediction
         self.outputs = []
+        self.gen_idx = 0
     
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
         super().setup(trainer, pl_module, stage)
@@ -56,39 +57,22 @@ class DockingTestCallback(Callback):
         super().on_test_batch_end(
             trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
         )
-        self.outputs.extend(outputs)
+        # self.outputs.extend(outputs)
+        
+        results, fail_results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(outputs)
 
-    def on_test_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        super().on_test_start(trainer, pl_module)
-        self.outputs = []
-
-    def on_test_epoch_end(
-        self, trainer: Trainer, pl_module: LightningModule
-    ) -> None:
-        super().on_test_epoch_end(trainer, pl_module)
-
-        # TODO: !!! using openbabel to reconstruct the molecule
-        results, fail_results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
-
-        # path = pl_module.cfg.accounting.test_outputs_dir
-        # if os.path.exists(path):
-        #     shutil.rmtree(path)
-        # os.makedirs(path, exist_ok=True)
-
-        # if os.path.exists(OUT_DIR):
-        #     shutil.rmtree(OUT_DIR)
         os.makedirs(self.output_path, exist_ok=True)
         
         rank = trainer.global_rank
 
-        for idx, res in enumerate(tqdm(results, desc="Chem eval")):
-            
+        for res in tqdm(results, desc="Batch Chem eval"):
             try:
                 mol = res['mol']
                 ligand_filename = res['ligand_filename']
                 mol.SetProp('_Name', ligand_filename)
             
                 Chem.SanitizeMol(mol)
+                Chem.AssignStereochemistryFrom3D(mol)
                 smiles = Chem.MolToSmiles(mol)
                 validity = smiles is not None
                 complete = '.' not in smiles
@@ -100,7 +84,55 @@ class DockingTestCallback(Callback):
                 print('validity', validity, 'complete', complete)
                 continue
 
-            out_fn = os.path.join(self.output_path, f'{rank}_{idx}.sdf')
+            out_fn = os.path.join(self.output_path, f'{rank}_{self.gen_idx}.sdf')
             with Chem.SDWriter(out_fn) as w:
                 w.write(mol)
+            self.gen_idx += 1
+
+    def on_test_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        super().on_test_start(trainer, pl_module)
+        self.outputs = []
+        self.gen_idx = 0
+
+    def on_test_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
+        super().on_test_epoch_end(trainer, pl_module)
+        pass
+        # results, fail_results, recon_dict = reconstruct_mol_and_filter_invalid_mr_bond(self.outputs)
+
+        # # path = pl_module.cfg.accounting.test_outputs_dir
+        # # if os.path.exists(path):
+        # #     shutil.rmtree(path)
+        # # os.makedirs(path, exist_ok=True)
+
+        # # if os.path.exists(OUT_DIR):
+        # #     shutil.rmtree(OUT_DIR)
+        # os.makedirs(self.output_path, exist_ok=True)
+        
+        # rank = trainer.global_rank
+
+        # for idx, res in enumerate(tqdm(results, desc="Chem eval")):
+            
+        #     try:
+        #         mol = res['mol']
+        #         ligand_filename = res['ligand_filename']
+        #         mol.SetProp('_Name', ligand_filename)
+            
+        #         Chem.SanitizeMol(mol)
+        #         Chem.AssignStereochemistryFrom3D(mol)
+        #         smiles = Chem.MolToSmiles(mol)
+        #         validity = smiles is not None
+        #         complete = '.' not in smiles
+        #     except:
+        #         print('sanitize failed')
+        #         continue
+
+        #     if not validity or not complete:
+        #         print('validity', validity, 'complete', complete)
+        #         continue
+
+        #     out_fn = os.path.join(self.output_path, f'{rank}_{idx}.sdf')
+        #     with Chem.SDWriter(out_fn) as w:
+                # w.write(mol)
 

@@ -115,6 +115,7 @@ def reconstruct_mol_and_filter_invalid_mr_bond(out_list):
 
             n_complete += int(complete)
             n_valid += int(validity)
+            res['mol'] = mol
             res['smiles'] = smiles                    
             res['complete'] = complete
             res['validity'] = validity
