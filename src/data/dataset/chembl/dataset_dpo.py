@@ -42,7 +42,7 @@ class DPODataset(Dataset):
         winner_affinity = self.affinity_info[winner_identifier]['pAffinity']
         loser_affinity = self.affinity_info[loser_identifer]['pAffinity']
         
-        assert winner_affinity > loser_affinity, f"Winner affinity {winner_affinity} should be greater than loser affinity {loser_affinity}"
+        assert winner_affinity > loser_affinity, f"Winner {winner_identifier} affinity {winner_affinity} should be greater than loser {loser_identifer} affinity {loser_affinity}"
         
         paired_data = HeteroData()
 

@@ -231,7 +231,7 @@ if __name__ == "__main__":
         max_epochs=cfg.train.epochs,
         check_val_every_n_epoch=cfg.train.ckpt_freq,
         # devices=[2],
-        devices=[2,3,4,5,6,7], strategy="ddp_find_unused_parameters_false",
+        devices=[0,1,2,3,4,5,6,7], strategy="ddp_find_unused_parameters_false",
         logger=wandb_logger,
         num_sanity_val_steps=0,
         inference_mode=not cfg.test_only,
@@ -285,6 +285,8 @@ if __name__ == "__main__":
         else:
             trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
         # ckpt_path can be 'best', 'last', or a specific path
+        rank = trainer.local_rank
+        seed_everything(cfg.seed + rank, workers=True)
         trainer.test(model, dataloaders=test_loader, ckpt_path=cfg.evaluation.ckpt_path)
     else:
         # trainer.validate(model, dataloaders=val_loader, ckpt_path=cfg.evaluation.ckpt_path)
