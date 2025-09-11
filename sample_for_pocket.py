@@ -15,7 +15,7 @@ from src.data.protein_ligand import PDBProtein
 # from src.data.featurization.pl_simple import ProteinLigandSimpleFeaturization
 from src.data.featurization.pl_bond import ProteinLigandBondFeaturization
 from src.data.featurization.util import transfer_conformers
-from src.datasets.pl_data import torchify_dict
+from src.datasets.pl_data import torchify_dict, FOLLOW_BATCH
 
 import pytorch_lightning as pl
 
@@ -25,7 +25,7 @@ import numpy as np
 from rdkit import Chem
 
 
-def get_input_data_template(ligand_fn, protein_fn, scaffold_fn, sample_num_atoms):
+def get_input_data_template(ligand_fn, protein_fn, scaffold_fn, sample_num_atoms, mode):
     identifier = os.path.basename(ligand_fn).split('.')[0]
     mol = Chem.MolFromMolFile(ligand_fn)
     mol = Chem.RemoveAllHs(mol)
@@ -55,7 +55,7 @@ def get_input_data_template(ligand_fn, protein_fn, scaffold_fn, sample_num_atoms
     
     featurizer = ProteinLigandBondFeaturization()
 
-    data = featurizer(mol, scaf_mol, pocket_dict, identifier, mode='test')
+    data = featurizer(mol, scaf_mol, pocket_dict, identifier, mode=mode)
     return data
     
 
@@ -63,7 +63,7 @@ def get_dataloader_from_pdb(cfg):
     assert cfg.evaluation.protein_path is not None and cfg.evaluation.ligand_path is not None
     protein_fn, ligand_fn, scaffold_fn = cfg.evaluation.protein_path, cfg.evaluation.ligand_path, cfg.evaluation.scaffold_path
 
-    data = get_input_data_template(ligand_fn, protein_fn, scaffold_fn, cfg.evaluation.sample_num_atoms)
+    data = get_input_data_template(ligand_fn, protein_fn, scaffold_fn, cfg.evaluation.sample_num_atoms, cfg.mode)
     test_set = [data] * cfg.evaluation.num_samples
     cfg.evaluation.num_samples = 1
     test_loader = DataLoader(
@@ -71,6 +71,7 @@ def get_dataloader_from_pdb(cfg):
         batch_size=cfg.evaluation.batch_size,
         shuffle=False,
         pin_memory=True,
+        follow_batch=FOLLOW_BATCH,
     )
 
     # cfg.evaluation.docking_config.protein_root = os.path.dirname(os.path.abspath(protein_fn))
@@ -80,7 +81,7 @@ def get_dataloader_from_pdb(cfg):
 
 
 def call(protein_fn, ligand_fn, scaffold_fn, batch_size,ckpt_path='./checkpoints/last.ckpt', output_path='./output',
-         num_samples=10, sample_steps=100, sample_num_atoms='prior', devices=[0],
+         num_samples=10, sample_steps=100, sample_num_atoms='prior', mode='test', devices=[0],
          beta1=1.5, sigma1_coord=0.03, sampling_strategy='end_back', seed=1234):
     
     cfg = Config('./checkpoints/config.yaml')
@@ -101,6 +102,7 @@ def call(protein_fn, ligand_fn, scaffold_fn, batch_size,ckpt_path='./checkpoints
     cfg.seed = seed
     cfg.train.max_grad_norm = 'Q'
     cfg.output_path = output_path
+    cfg.mode = mode
 
     # print(f"The config of this process is:\n{cfg}")
 
@@ -147,6 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--scaffold_path', type=str, required=True)
     parser.add_argument('--ckpt_path', type=str, default='./checkpoints/last.ckpt')
     parser.add_argument('--sample_num_atoms', choices=['prior', 'ref'], default='prior')
+    parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--batch_size', type=int, default=50)
     parser.add_argument('--num_samples', type=int, default=1000)
@@ -167,6 +170,7 @@ if __name__ == '__main__':
         args.batch_size,
         ckpt_path=args.ckpt_path,
         sample_num_atoms=args.sample_num_atoms,
+        mode=args.mode,
         output_path=args.output_path,
         num_samples=args.num_samples,
         devices=args.devices,

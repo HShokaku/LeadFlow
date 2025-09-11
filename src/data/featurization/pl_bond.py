@@ -62,6 +62,8 @@ class ProteinLigandBondFeaturization:
 
     def __call__(self, mol: Chem.Mol, scaffold_mol: Chem.Mol, pocket: dict, uuid: int, mode='train') -> HeteroData:
 
+        assert mode in ['train', 'val', 'test', 'de_novo', 'scaf_hopping'], f"Unknown featurize mode: {mode}"
+        
         x = self.get_ligand_atom_types(mol)
         pos = self.get_ligand_positions(mol)
 
@@ -72,7 +74,7 @@ class ProteinLigandBondFeaturization:
 
             if len(match) == len(x):
                 # If the scaffold is the same as the ligand, we mask all atoms and bonds for denovo generation mode
-                if mode == 'train' or mode == 'val' or mode == 'de_novo':
+                if mode == 'train' or mode == 'val' or mode == 'de_novo' or mode == 'scaf_hopping':
                     print(f"Found scaffold all matches for {uuid}")
                     match = []
                 # In sample mode, if the scaffold is the same as the ligand, non atom or bond is masked, rgroup will be added in prior sampling mode
@@ -95,6 +97,11 @@ class ProteinLigandBondFeaturization:
         
         scaf_fc_bond_mask = (fc_edge_index[0][:, None] == match_tensor).any(1) & \
                             (fc_edge_index[1][:, None] == match_tensor).any(1)
+        
+        if mode == 'scaf_hopping':
+            rgroup_mask = ~rgroup_mask
+            scaf_fc_bond_mask = (~(fc_edge_index[0][:, None] == match_tensor).any(1)) & \
+                                (~(fc_edge_index[1][:, None] == match_tensor).any(1))
         
         return HeteroData(
             protein={
