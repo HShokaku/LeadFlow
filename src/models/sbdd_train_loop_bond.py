@@ -53,8 +53,9 @@ class SBDDTrainLoopBond(pl.LightningModule):
         self.log_time = False
 
     # def setup(self, stage: str)-> None:
-    #     # if stage == "fit":
-    #     self.dynamics = torch.compile(self.dynamics)
+        # if stage == "fit":
+        # self.dynamics = torch.compile(self.dynamics)
+        # pass
 
     def forward(self, x):
         pass
