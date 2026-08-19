@@ -1,4 +1,4 @@
-name: BFNdec
+name: LeadFlow
 channels:
   - mx
   - pyg
@@ -9,7 +9,6 @@ channels:
   - rmg
   - anaconda
   - conda-forge
-  - defaults
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
@@ -39,14 +38,13 @@ dependencies:
   - boost-cpp=1.78.0=h2c5509c_4
   - boto3=1.34.154=py39h06a4308_0
   - botocore=1.34.154=py39h06a4308_0
-  - bottleneck=1.3.5=py39h7deecbd_0
   - brotlipy=0.7.0=py39hb9d737c_1005
   - bson=0.5.9=py_0
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.34.2=heb4867d_0
-  - ca-certificates=2024.11.26=h06a4308_0
+  - ca-certificates=2025.1.31=hbcca054_0
   - cairo=1.18.0=h3faef2a_0
-  - certifi=2024.8.30=py39h06a4308_0
+  - certifi=2025.1.31=pyhd8ed1ab_0
   - cffi=1.15.1=py39he91dace_0
   - chardet=3.0.4=py_1
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
@@ -111,7 +109,6 @@ dependencies:
   - icu=73.2=h59595ed_0
   - idna=3.3=pyhd3eb1b0_0
   - imageio=2.33.1=py39h06a4308_0
-  - importlib-metadata=4.11.3=py39h06a4308_0
   - importlib_resources=5.9.0=pyhd8ed1ab_0
   - iniconfig=1.1.1=pyh9f0ad1d_0
   - inquirer=3.1.4=py39h06a4308_0
@@ -239,7 +236,6 @@ dependencies:
   - notebook=6.4.12=pyha770c72_0
   - nspr=4.32=h9c3ff4c_1
   - nss=3.78=h2350873_0
-  - numexpr=2.7.3=py39hde0f152_1
   - numpy=1.23.1=py39hba7629e_0
   - ocl-icd=2.3.1=h7f98852_0
   - ocl-icd-system=1.0.0=1
@@ -251,12 +247,11 @@ dependencies:
   - openmm=7.5.1=py39h71eca04_1
   - openmmforcefields=0.7.4=py_0
   - openpyxl=3.1.5=py39h5eee18b_0
-  - openssl=3.3.2=hb9d3cd8_0
+  - openssl=3.4.1=h7b32b05_0
   - ordered-set=4.1.0=py39h06a4308_0
   - orjson=3.10.7=py39h97a8848_0
   - packaging=21.3=pyhd8ed1ab_0
   - packmol=1!18.013=0
-  - pandas=1.4.3=py39h6a678d5_0
   - pandoc=2.19=ha770c72_0
   - pandocfilters=1.5.0=pyhd8ed1ab_0
   - parmed=3.4.3=py39h5a03fae_3
@@ -277,6 +272,7 @@ dependencies:
   - prometheus_client=0.14.1=pyhd8ed1ab_0
   - prompt-toolkit=3.0.30=pyha770c72_0
   - prompt_toolkit=3.0.30=hd8ed1ab_0
+  - propcache=0.2.0=py39h5eee18b_0
   - psutil=5.9.1=py39hb9d737c_0
   - pthread-stubs=0.4=h36c2ea0_1001
   - ptyprocess=0.7.0=pyhd3deb0d_0
@@ -359,8 +355,6 @@ dependencies:
   - tornado=6.2=py39hb9d737c_0
   - tqdm=4.64.0=pyhd8ed1ab_0
   - traitlets=5.3.0=pyhd8ed1ab_0
-  - typing_extensions=4.11.0=py39h06a4308_0
-  - tzdata=2022a=hda174b7_0
   - urllib3=1.26.11=py39h06a4308_0
   - uvicorn=0.20.0=py39h06a4308_0
   - wcwidth=0.2.5=pyh9f0ad1d_2
@@ -393,7 +387,6 @@ dependencies:
   - yacs=0.1.8=pyhd8ed1ab_0
   - yaml=0.2.5=h7f98852_2
   - zeromq=4.3.4=h9c3ff4c_1
-  - zipp=3.8.1=pyhd8ed1ab_0
   - zlib=1.2.13=h166bdaf_4
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
@@ -403,7 +396,12 @@ dependencies:
       - amberlite==22.0
       - amberutils==21.0
       - async-timeout==4.0.2
+      - git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3@a62a5d98116f1590183b58a9ad732b997cf2579c
       - biopandas==0.5.1
+      - bottleneck==1.3.6
+      - cloudpickle==3.1.1
+      - dask==2024.8.0
+      - dask-expr==1.1.10
       - datamol==0.12.5
       - dill==0.3.9
       - docker-pycreds==0.4.0
@@ -416,8 +414,10 @@ dependencies:
       - gitdb==4.0.11
       - gitpython==3.1.43
       - griddataformats==1.0.2
-      - lightning-utilities==0.4.2
+      - importlib-metadata==8.6.1
+      - lightning-utilities==0.11.6
       - lmdb==1.5.1
+      - locket==1.0.0
       - loguru==0.7.2
       - looseversion==1.1.2
       - mda-xdrlib==0.2.0
@@ -429,26 +429,37 @@ dependencies:
       - mrcfile==1.5.3
       - multidict==6.0.3
       - multiprocess==0.70.17
+      - narwhals==1.33.0
+      - numexpr==2.8.4
       - overrides==7.7.0
       - packmol-memgen==1.2.3rc0
+      - pandarallel==1.6.5
+      - pandas==2.2.3
+      - partd==1.4.2
       - pdb2pqr==3.6.2
       - pdb4amber==22.0
       - platformdirs==4.3.6
+      - plotly==6.0.1
       - prolif==2.0.3
       - propka==3.5.1
       - protobuf==3.20.1
+      - pyarrow==19.0.1
       - pytraj==2.0.6
-      - rdkit==2024.3.5
+      - rdkit==2024.3.6
       - sander==22.0
       - seaborn==0.13.2
       - selfies==2.1.2
       - sentry-sdk==2.17.0
       - setproctitle==1.3.3
       - smmap==5.0.1
+      - swifter==1.4.0
       - tensorboardx==2.5.1
+      - toolz==1.0.0
       - torchmetrics==0.11.0
       - typing-extensions==4.12.2
+      - tzdata==2025.2
       - vina==1.2.2
       - wandb==0.18.5
       - yarl==1.8.2
-prefix: /home/user-home/fanzhehuan/miniconda3/envs/BFNdec
+      - zipp==3.21.0
+prefix: /home/fanzhehuan/miniforge3/envs/LeadFlow
