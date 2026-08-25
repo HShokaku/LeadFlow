@@ -65,8 +65,8 @@ data:
   name: !SUB ${data_name} # pl, pl_tr
   path: ./data/crossdocked_v1.1_rmsd1.0_pocket10
   split:  ./data/crossdocked_pocket10_pose_split.pt
-  affinity_info: ./data/chembl/raw/round6/dpo/affinity_info_all.pkl
-  pair_dict: ./data/chembl/raw/round6/dpo/dpo_pair_dict_threshold5.pkl
+  affinity_info: ./data/chembl/raw/affinity_info_all.pkl
+  pair_dict: ./data/chembl/raw/dpo_pair_dict_threshold5.pkl
   transform:
     ligand_atom_mode: add_aromatic
   with_split: True
