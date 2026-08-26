@@ -1,3 +1,5 @@
+archive/
+checkpoints/
 /case_study
 /debug
 /tmp
@@ -167,6 +169,4 @@ cython_debug/
 #.idea/
 
 # Only keep the release training configurations under version control.
-/configs/*
-!/configs/default_bond.yaml
-!/configs/dpo_all_threshold5.yaml
+/configs/debug/
