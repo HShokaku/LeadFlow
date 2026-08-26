@@ -164,6 +164,13 @@ unzip Path/to/data.zip -d .
 unzip Path/to/LeadFlow_ablation.zip -d .
 ```
 
+The ablation datasets are derived from the original ChEMBL training and
+validation molecules. The Rxn variant generates scaffold–decoration pairs by
+reaction-based slicing, while the Bemis–Murcko variant extracts the RDKit
+Bemis–Murcko scaffold from each ligand. The docking-DPO variant uses the same
+within-series pairs selected by a five-fold experimental-affinity threshold and
+reorders each pair by Glide docking score, with more negative scores preferred.
+
 Run the ablation training scripts with:
 
 ```bash
