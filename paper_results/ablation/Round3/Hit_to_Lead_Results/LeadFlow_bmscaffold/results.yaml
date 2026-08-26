@@ -1,0 +1,65 @@
+model_name: LeadFlow_bmscaffold
+round: Round3
+mode: Hit_to_Lead_Results
+metrics:
+  HitRediscover:
+    all:
+      smiles_hit_recovery: 50.0
+      smiles_hit_rate: 0.0009747899159663867
+      smiles_hit_fraction: 0.005890861645740702
+      scaffold_hit_recovery: 211.0
+      scaffold_hit_rate: 0.19921848739495798
+      scaffold_hit_fraction: 0.05961758438876445
+      smiles_hit_num: 116.0
+      Mean_normalized_affinity: 0.4953220204583562
+      sum_normalized_affinity_count_>=_0.5: 60.0
+      sum_normalized_affinity_count_>=_0.8: 19.0
+      sum_normalized_affinity_count_>=_0.9: 9.0
+      sum_normalized_affinity_count_>=_0.95: 5.0
+      sum_normalized_affinity_count_>=_0.99: 5.0
+      sum_max_normalized_affinity_count_>=_0.5: 27.0
+      sum_max_normalized_affinity_count_>=_0.8: 14.0
+      sum_max_normalized_affinity_count_>=_0.9: 7.0
+      sum_max_normalized_affinity_count_>=_0.95: 5.0
+      sum_max_normalized_affinity_count_>=_0.99: 5.0
+      Mean_NADR: 0.37125096722596396
+    seen:
+      smiles_hit_recovery: 36.0
+      smiles_hit_rate: 0.001
+      smiles_hit_fraction: 0.005782753798370378
+      scaffold_hit_recovery: 150.0
+      scaffold_hit_rate: 0.20060714285714284
+      scaffold_hit_fraction: 0.053131729210176254
+      smiles_hit_num: 84.0
+      Mean_normalized_affinity: 0.49522313279127583
+      sum_normalized_affinity_count_>=_0.5: 42.0
+      sum_normalized_affinity_count_>=_0.8: 14.0
+      sum_normalized_affinity_count_>=_0.9: 7.0
+      sum_normalized_affinity_count_>=_0.95: 4.0
+      sum_normalized_affinity_count_>=_0.99: 4.0
+      sum_max_normalized_affinity_count_>=_0.5: 19.0
+      sum_max_normalized_affinity_count_>=_0.8: 10.0
+      sum_max_normalized_affinity_count_>=_0.9: 5.0
+      sum_max_normalized_affinity_count_>=_0.95: 4.0
+      sum_max_normalized_affinity_count_>=_0.99: 4.0
+      Mean_NADR: 0.3656239593666426
+    unseen:
+      smiles_hit_recovery: 14.0
+      smiles_hit_rate: 0.0009142857142857143
+      smiles_hit_fraction: 0.006150320479429476
+      scaffold_hit_recovery: 61.0
+      scaffold_hit_rate: 0.1958857142857143
+      scaffold_hit_fraction: 0.07518363681737611
+      smiles_hit_num: 32.0
+      Mean_normalized_affinity: 0.49558160058444206
+      sum_normalized_affinity_count_>=_0.5: 18.0
+      sum_normalized_affinity_count_>=_0.8: 5.0
+      sum_normalized_affinity_count_>=_0.9: 2.0
+      sum_normalized_affinity_count_>=_0.95: 1.0
+      sum_normalized_affinity_count_>=_0.99: 1.0
+      sum_max_normalized_affinity_count_>=_0.5: 8.0
+      sum_max_normalized_affinity_count_>=_0.8: 4.0
+      sum_max_normalized_affinity_count_>=_0.9: 2.0
+      sum_max_normalized_affinity_count_>=_0.95: 1.0
+      sum_max_normalized_affinity_count_>=_0.99: 1.0
+      Mean_NADR: 0.3857204160070761

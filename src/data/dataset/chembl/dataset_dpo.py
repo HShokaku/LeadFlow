@@ -1,4 +1,6 @@
 import pickle
+from pathlib import Path
+
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from torch_geometric.data import HeteroData
@@ -7,6 +9,7 @@ from torch_geometric.data import HeteroData
 class DPODataset(Dataset):
     def __init__(self, dataset, affinity_info, pair_dict):
         self.dataset = dataset
+        self.score_key, self.score_sign = self._infer_score_setting(affinity_info)
         
         with open(affinity_info, 'rb') as f:
             self.affinity_info = pickle.load(f)
@@ -21,6 +24,16 @@ class DPODataset(Dataset):
         print("Convert uuid to index for dataset...")
         self.uuid_to_idx = {item['uuid']: idx for idx, item in tqdm(enumerate(self.dataset), total=len(self.dataset))}
 
+    def _infer_score_setting(self, affinity_info):
+        if "docking_score" in Path(str(affinity_info)).name:
+            # Glide docking score is lower/more negative when better. Convert it
+            # to a reward where larger means better, matching the DPO code path.
+            return "docking_score", -1.0
+        return "pAffinity", 1.0
+
+    def _get_reward(self, identifier):
+        score = float(self.affinity_info[identifier][self.score_key])
+        return self.score_sign * score
 
     def __len__(self):
         return self.length
@@ -39,8 +52,8 @@ class DPODataset(Dataset):
         assert winner_sample['uuid'] == winner_identifier, f"Expected winner {winner_identifier}, but got {winner_sample['uuid']}"
         assert loser_sample['uuid'] == loser_identifer, f"Expected loser {loser_identifer}, but got {loser_sample['uuid']}"
         
-        winner_affinity = self.affinity_info[winner_identifier]['pAffinity']
-        loser_affinity = self.affinity_info[loser_identifer]['pAffinity']
+        winner_affinity = self._get_reward(winner_identifier)
+        loser_affinity = self._get_reward(loser_identifer)
         
         assert winner_affinity > loser_affinity, f"Winner {winner_identifier} affinity {winner_affinity} should be greater than loser {loser_identifer} affinity {loser_affinity}"
         

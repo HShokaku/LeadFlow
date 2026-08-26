@@ -8,12 +8,14 @@ from typing import Callable, List, Optional, Iterator
 import torch
 from tqdm import tqdm
 from rdkit import Chem
+from rdkit.Chem.Scaffolds import MurckoScaffold
 from torch_geometric.data import HeteroData
 
 from src.utils.misc import torchify_dict
 from src.data.util import LMDBStorage
 from src.data.protein_ligand import PDBProtein
 from src.data.dataset.dataset import ProteinLigandDataset
+from src.data.featurization.multi_frag import remove_dummys_mol
 from src.data.featurization.util import transfer_conformers
 
 
@@ -96,6 +98,15 @@ class chembl_Dataset(ProteinLigandDataset):
         self._log(f"Transformed {len(transformed_data)} complexes")
         data, slices = self.collate(transformed_data)
         torch.save((data, slices), split_file)
+
+    def _get_scaffold_mol(self, row: pd.Series):
+        scaffold = row['Scaffold'] if not pd.isna(row["Scaffold"]) else None
+        if scaffold is None:
+            return None
+
+        if Path(self.root).name == "chembl_frag" and self.split in ["train", "val"]:
+            return remove_dummys_mol(scaffold)
+        return Chem.MolFromSmarts(scaffold)
         
     def _featurize_candidate(self, row: pd.Series) -> Optional[HeteroData]:
         split = self.split
@@ -110,8 +121,10 @@ class chembl_Dataset(ProteinLigandDataset):
             mol = Chem.MolFromMolFile(ligand_fn)
             mol = Chem.RemoveAllHs(mol)
             
-            smarts = row['Scaffold'] if not pd.isna(row["Scaffold"]) else None
-            scaf_mol = Chem.MolFromSmarts(smarts) if smarts is not None else None
+            if Path(self.root).name == 'chembl_bmscaffold' and self.split in ['train', 'val']:
+                scaf_mol = MurckoScaffold.GetScaffoldForMol(mol)
+            else:
+                scaf_mol = self._get_scaffold_mol(row)
             
             # scaf_mol没有，或者找不到子结构的情况下，直接用mol获取口袋
             if scaf_mol is not None and mol.HasSubstructMatch(scaf_mol):

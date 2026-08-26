@@ -69,6 +69,38 @@ def get_exits(mol):
             exits.append(atom)
     return exits
 
+def remove_dummys_mol(molecule):
+    '''
+    Input: mol / str containing dummy atom
+    Return: Removed mol, anchor_idx
+    '''
+    if type(molecule) == str:
+        dum_mol = Chem.MolFromSmiles(molecule)
+    else:
+        dum_mol = molecule
+    # Chem.SanitizeMol(dum_mol)
+    exits = get_exits(dum_mol)
+    exits = sorted(exits, key=lambda e: e.GetIdx(), reverse=True)
+
+    efragment = Chem.EditableMol(dum_mol)
+    for exit in exits:
+    # exit = exits[0]
+        bonds = exit.GetBonds()
+        if len(bonds) > 1:
+            raise Exception('Exit atom has more than 1 bond')
+        bond = bonds[0]
+        exit_idx = exit.GetIdx()
+        source_idx = bond.GetBeginAtomIdx()
+        target_idx = bond.GetEndAtomIdx()
+        anchor_idx = source_idx if target_idx == exit_idx else target_idx
+
+        efragment.RemoveBond(source_idx, target_idx)
+        efragment.RemoveAtom(exit_idx)
+
+    mol = efragment.GetMol()
+
+    return mol
+
 def set_anchor_flags(mol, anchor_idx):
     # 设置anchor，multifrag与singlefrag的区别是一个anchor可能是多个frag的位点
     for atom in mol.GetAtoms():
