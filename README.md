@@ -12,6 +12,16 @@ python -m pip install -e posecheck
 python -m pip install -r posecheck/requirements.txt
 ```
 
+## 📦 Pretrained checkpoints
+
+The pretrained BFN and DPO checkpoints are available from
+[Zenodo](https://zenodo.org/records/22009408). Download `checkpoints.zip`, then
+extract it from the repository root:
+
+```bash
+unzip Path/to/checkpoints.zip -d .
+```
+
 ## 🚀 Quick Start: Sampling
 
 Two sampling templates are provided:
@@ -44,3 +54,100 @@ bash scripts/sampling_template.sh
 # DPO sampling
 bash scripts/dpo_sampling_template.sh
 ```
+
+## 🗂️ Dataset
+
+The raw data and preprocessed dataset used in this work are available from
+[Zenodo](https://zenodo.org/records/22089235). Download `data.zip` and extract
+it from the repository root:
+
+```bash
+unzip Path/to/data.zip -d .
+```
+
+This creates the following directory structure:
+
+```text
+data/
+└── chembl/
+    ├── raw/
+    │   ├── train.csv                         # Training metadata, affinities, and scaffold annotations
+    │   ├── val.csv                           # Validation metadata, affinities, and scaffold annotations
+    │   ├── test.csv                          # MolGenBench test identifiers and scaffold annotations
+    │   ├── train/                            # Training protein–ligand structures grouped by molecular series
+    │   │   └── Sries*/
+    │   │       ├── *_prep.pdb                # Prepared protein structure
+    │   │       ├── *_lig*.sdf                # Protein-bound ligand poses
+    │   │       └── *_scaffold_info_*.csv     # Per-series scaffold annotations
+    │   ├── val/                              # Validation structures in the same format as train/
+    │   ├── test/                             # MolGenBench structures grouped by protein target
+    │   │   └── <target>/
+    │   │       ├── *_prep.pdb                # Prepared protein structure
+    │   │       └── *.sdf                     # Protein-bound ligand poses
+    │   ├── affinity_info_all.pkl             # Ligand affinity metadata used for DPO training
+    │   └── dpo_pair_dict_threshold5.pkl      # Preferred/non-preferred ligand pairs at a 5-fold threshold
+    └── processed/
+        ├── train.pt                          # Featurized training split
+        ├── val.pt                            # Featurized validation split
+        ├── test.pt                           # Featurized MolGenBench test split
+        ├── pre_transform.pt                  # Saved preprocessing transform metadata
+        └── pre_filter.pt                     # Saved preprocessing filter metadata
+```
+
+The archive already contains the processed files and can be used directly. To
+rebuild them from the raw data, run:
+
+```bash
+# Create the training and validation datasets and DPO metadata
+python create_dataset.py chembl --transform bond --stage fit
+
+# Create the MolGenBench test dataset
+python create_dataset.py chembl --transform bond --stage test
+```
+
+The first command creates `processed/train.pt`, `processed/val.pt`,
+`raw/affinity_info_all.pkl`, and `raw/dpo_pair_dict_threshold5.pkl`. The second
+creates `processed/test.pt`. Preprocessing metadata is also saved as
+`processed/pre_transform.pt` and `processed/pre_filter.pt`.
+
+## 🏋️ Training
+
+The BFN and DPO training configurations used in this work can be launched
+directly with the provided scripts. Run them from the repository root:
+
+```bash
+# Train the BFN model from scratch
+bash train_bfn_bond.sh
+
+# Train the DPO model from the pretrained BFN checkpoint
+bash train_bfn_dpo.sh
+```
+
+`train_bfn_bond.sh` starts BFN training from scratch using
+`configs/default_bond.yaml`. `train_bfn_dpo.sh` initializes DPO training from
+the pretrained BFN checkpoint configured in the script. Training outputs and
+checkpoints are saved under `logs/`.
+
+## 🧪 Testing
+
+After downloading and extracting the pretrained checkpoints, use the following
+scripts to sample molecules on MolGenBench from the repository root:
+
+```bash
+# Sample molecules with the pretrained BFN model
+bash test_bfn_prior_bond.sh
+
+# Sample molecules with the pretrained DPO model
+bash test_bfn_prior_bond_dpo.sh
+```
+
+## 📊 Sampling and evaluation results
+
+The molecules sampled on MolGenBench and their evaluation results are available
+from [Zenodo](https://zenodo.org/records/22089235):
+
+- `LeadFlow_sampling_results.zip` contains the generated and Vina-docked
+  molecules from the BFN and DPO models, together with the corresponding
+  MolGenBench evaluation results.
+- `LeadFlow_ablation.zip` contains the generated molecules and corresponding
+  MolGenBench evaluation results for the Rxn, Bemis–Murcko scaffold, and docking-based DPO ablations, together with their checkpoints and training configurations.
