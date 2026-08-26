@@ -15,7 +15,7 @@ python -m pip install -r posecheck/requirements.txt
 ## 📦 Pretrained checkpoints
 
 The pretrained BFN and DPO checkpoints are available from
-[Zenodo](https://zenodo.org/records/22009408). Download `checkpoints.zip`, then
+[Zenodo](https://doi.org/10.5281/zenodo.22089235). Download `checkpoints.zip`, then
 extract it from the repository root:
 
 ```bash
@@ -58,7 +58,7 @@ bash scripts/dpo_sampling_template.sh
 ## 🗂️ Dataset
 
 The raw data and preprocessed dataset used in this work are available from
-[Zenodo](https://zenodo.org/records/22089235). Download `data.zip` and extract
+[Zenodo](https://doi.org/10.5281/zenodo.22089235). Download `data.zip` and extract
 it from the repository root:
 
 ```bash
@@ -144,7 +144,7 @@ bash test_bfn_prior_bond_dpo.sh
 ## 📊 Sampling and evaluation results
 
 The molecules sampled on MolGenBench and their evaluation results are available
-from [Zenodo](https://zenodo.org/records/22089235):
+from [Zenodo](https://doi.org/10.5281/zenodo.22089235):
 
 - `LeadFlow_sampling_results.zip` contains the generated and Vina-docked
   molecules from the BFN and DPO models, together with the corresponding
