@@ -9,7 +9,7 @@ from src.config.config import Config
 # from src.models.sbdd_train_loop import SBDDTrainLoop
 from src.models.sbdd_train_loop_bond import SBDDTrainLoopBond
 from src.callbacks.basic import NormalizerCallback
-from src.callbacks.validation_callback_for_sample import DockingTestCallback
+from src.callbacks.validation_callback_for_sample import DockingTestCallback, TrajectoryCallback
 
 from src.data.protein_ligand import PDBProtein
 # from src.data.featurization.pl_simple import ProteinLigandSimpleFeaturization
@@ -82,7 +82,7 @@ def get_dataloader_from_pdb(cfg):
 
 def call(protein_fn, ligand_fn, scaffold_fn, batch_size,ckpt_path='./checkpoints/last.ckpt', output_path='./output',
          num_samples=10, sample_steps=100, sample_num_atoms='prior', mode='test', devices=[0],
-         beta1=1.5, sigma1_coord=0.03, sampling_strategy='end_back', seed=1234):
+         beta1=1.5, sigma1_coord=0.03, sampling_strategy='end_back', seed=1234, save_traj=False):
     
     cfg = Config('./checkpoints/config.yaml')
     
@@ -131,7 +131,7 @@ def call(protein_fn, ligand_fn, scaffold_fn, batch_size,ckpt_path='./checkpoints
                 output_path=cfg.output_path,
                 bond_prediction=cfg.train.bond_prediction,
             ),
-        ],
+        ] + ([TrajectoryCallback(cfg.output_path)] if save_traj else []),
     )
 
     rank = trainer.local_rank
@@ -155,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=1000)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--devices', type=int, nargs='+', default=[0])
+    parser.add_argument('--save_traj', action='store_true', help='Save one SDF per sampling step for each molecule')
     
     args = parser.parse_args()
     
@@ -175,4 +176,5 @@ if __name__ == '__main__':
         num_samples=args.num_samples,
         devices=args.devices,
         seed=args.seed,
+        save_traj=args.save_traj,
     )

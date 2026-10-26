@@ -5,13 +5,16 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 import numpy as np
-# import torch
+import torch
+import copy
 import os
 from tqdm import tqdm
 import matplotlib
 
 from src.evaluation.metrics import CondMolGenMetric
 from src.callbacks.validation_callback import reconstruct_mol_and_filter_invalid_mr_bond
+from src.utils import transforms as trans
+from src.utils.reconstruct import reconstruct_from_generated_with_bond
 
 # this file contains the model which we used to visualize the
 
@@ -136,3 +139,56 @@ class DockingTestCallback(Callback):
         #     with Chem.SDWriter(out_fn) as w:
                 # w.write(mol)
 
+
+class TrajectoryCallback(Callback):
+    def __init__(self, output_path):
+        super().__init__()
+        self.output_path = os.path.join(output_path, 'traj')
+        self.gen_idx = 0
+
+    def on_test_start(self, trainer, pl_module):
+        self.gen_idx = 0
+        pl_module.trajectory_callback = self.save_trajectory
+
+    def on_test_end(self, trainer, pl_module):
+        pl_module.trajectory_callback = None
+
+    def save_trajectory(self, pl_module, batch, sample_chain, offset):
+        out_batch = copy.deepcopy(batch).cpu()
+        ligand = out_batch['ligand']
+        rgroup_mask = ligand.rgroup_mask
+        scaf_fc_bond_mask = ligand.scaf_fc_bond_mask
+        offset = offset.detach().cpu()[ligand.batch[rgroup_mask]]
+        normalizer = torch.tensor(pl_module.cfg.data.normalizer_dict.pos, dtype=torch.float32)
+        ligand.pos = ligand.pos * normalizer
+
+        paths = []
+        for idx in range(out_batch.num_graphs):
+            path = os.path.join(self.output_path, f'{pl_module.global_rank}_{self.gen_idx + idx}')
+            os.makedirs(path, exist_ok=True)
+            paths.append(path)
+
+        # The last entry is the extra final prediction, after all sampling steps.
+        for step, (pos, atom_type, bond_type) in enumerate(sample_chain[:-1], start=1):
+            ligand.pos[rgroup_mask] = (pos.detach().cpu() + offset) * normalizer
+            ligand.x[rgroup_mask] = atom_type.argmax(dim=-1).detach().cpu()
+            ligand.fc_bond_types[~scaf_fc_bond_mask] = bond_type.argmax(dim=-1).detach().cpu()
+
+            for idx, path in enumerate(paths):
+                start, end = ligand.ptr[idx:idx + 2].tolist()
+                bond_mask = ligand.fc_bond_types_batch == idx
+                mol = reconstruct_from_generated_with_bond(
+                    ligand.pos[start:end].numpy().astype('float64'),
+                    trans.get_atomic_number_from_index(
+                        ligand.x[start:end], mode=pl_module.cfg.data.transform.ligand_atom_mode
+                    ),
+                    (out_batch['ligand', 'ligand'].edge_index[:, bond_mask] - start).numpy(),
+                    ligand.fc_bond_types[bond_mask].numpy(),
+                )
+                mol.SetProp('_Name', out_batch.uuid[idx])
+                with Chem.SDWriter(os.path.join(path, f'step_{step:03d}.sdf')) as writer:
+                    # Keep intermediate frames even when their valence is invalid.
+                    writer.SetKekulize(False)
+                    writer.write(mol)
+
+        self.gen_idx += out_batch.num_graphs

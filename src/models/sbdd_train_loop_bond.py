@@ -51,6 +51,7 @@ class SBDDTrainLoopBond(pl.LightningModule):
         self.save_hyperparameters(self.cfg.todict())
         self.time_records = np.zeros(6)
         self.log_time = False
+        self.trajectory_callback = None
 
     # def setup(self, stage: str)-> None:
         # if stage == "fit":
@@ -357,6 +358,9 @@ class SBDDTrainLoopBond(pl.LightningModule):
             # ligand_pos=ligand_pos,  # for debug only
             desc=desc,
         )
+
+        if self.trajectory_callback is not None:
+            self.trajectory_callback(self, batch, sample_chain, offset)
 
         # restore ligand to original position
         final = sample_chain[-1]  # mu_pos_final, k_final, k_hat_final
