@@ -1,6 +1,6 @@
 # LeadFlow
 
-<video src="assets/irak4_generation.mp4" controls autoplay loop muted playsinline width="100%"></video>
+![LeadFlow molecular generation animation](assets/irak4_generation.gif)
 
 ## 🛠️ Environment setup
 ```bash
