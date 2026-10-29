@@ -1,6 +1,19 @@
 # LeadFlow
 
-![LeadFlow molecular generation animation](assets/irak4_generation.gif)
+<table>
+<tr>
+<th align="center">IRAK4</th>
+<th align="center">ClpP</th>
+</tr>
+<tr>
+<td align="center"><img src="assets/irak4_generation.gif" alt="IRAK4 ligand-generation trajectory" width="480"></td>
+<td align="center"><img src="assets/clpp_generation.gif" alt="ClpP ligand-generation trajectory" width="480"></td>
+</tr>
+<tr>
+<td>Ligand generation trajectory in the IRAK4 binding pocket.</td>
+<td>Ligand generation trajectory in the ClpP binding pocket.</td>
+</tr>
+</table>
 
 ## 🛠️ Environment setup
 ```bash
