@@ -1,14 +1,19 @@
 # LeadFlow
 
-### IRAK4
-
-<p><img src="assets/irak4_generation.gif" alt="IRAK4 ligand-generation trajectory" width="760"></p>
-Ligand generation trajectory in the IRAK4 binding pocket.
-
-### ClpP
-
-<p><img src="assets/clpp_generation.gif" alt="ClpP ligand-generation trajectory" width="760"></p>
-Ligand generation trajectory in the ClpP binding pocket.
+<table>
+<tr>
+<th align="center">IRAK4</th>
+<th align="center">ClpP</th>
+</tr>
+<tr>
+<td align="center"><img src="assets/irak4_generation.gif" alt="IRAK4 ligand-generation trajectory" width="360"></td>
+<td align="center"><img src="assets/clpp_generation.gif" alt="ClpP ligand-generation trajectory" width="360"></td>
+</tr>
+<tr>
+<td>Ligand generation trajectory in the IRAK4 binding pocket.</td>
+<td>Ligand generation trajectory in the ClpP binding pocket.</td>
+</tr>
+</table>
 
 ## 🛠️ Environment setup
 ```bash
