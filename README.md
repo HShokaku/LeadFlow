@@ -11,9 +11,13 @@
 </tr>
 <tr>
 <td>Example ligand-generation trajectory for the active IRAK4 inhibitor recovered by LeadFlow-DPO (Fig. 6d,e).</td>
-<td>Example ligand-generation trajectory for DC-ClpP-02 in the ClpP binding pocket (Fig. 7g,h).</td>
+<td>Example ligand-generation trajectory in the ClpP binding pocket (Fig. 7g,h).</td>
 </tr>
 </table>
+
+## 🔔 News
+
+[2026-10-30] Our preprint is available at https://doi.org/10.65215/LTSpreprints.2026.10.29.000370.
 
 ## 🛠️ Environment setup
 ```bash
