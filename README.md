@@ -10,7 +10,7 @@
 <td align="center"><img src="assets/clpp_generation.gif" alt="ClpP ligand-generation trajectory" width="360"></td>
 </tr>
 <tr>
-<td>Example ligand-generation trajectory for the active IRAK4 inhibitor recovered by LeadFlow-DPO (IC₅₀ = 0.003 μM; Fig. 6d,e).</td>
+<td>Example ligand-generation trajectory for the active IRAK4 inhibitor recovered by LeadFlow-DPO (Fig. 6d,e).</td>
 <td>Example ligand-generation trajectory for DC-ClpP-02 in the ClpP binding pocket (Fig. 7g–h).</td>
 </tr>
 </table>
